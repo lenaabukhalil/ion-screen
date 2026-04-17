@@ -1,0 +1,273 @@
+import { delay, http, HttpResponse } from 'msw'
+import { getAuthUser } from './auth'
+import { getDb, nextMediaId, persistDb, type MockMedia, type MediaType } from '../db'
+import { apiPath } from '../utils'
+
+const SAMPLE_VIDEO = 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4'
+const UNSPLASH_POOL = [
+  'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1280',
+  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1280',
+  'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1280',
+  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=1280',
+]
+
+function isAdmin(user: { organization_id: number }): boolean {
+  return user.organization_id === 1
+}
+
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
+function hasActiveScheduleForMedia(db: ReturnType<typeof getDb>, mediaId: number): boolean {
+  const t = Date.now()
+  return db.schedules.some((s) => {
+    if (s.media_id !== mediaId || !s.active) return false
+    const a = new Date(s.starts_at).getTime()
+    const b = new Date(s.ends_at).getTime()
+    return t >= a && t <= b
+  })
+}
+
+function filterMediaList(
+  db: ReturnType<typeof getDb>,
+  user: { organization_id: number },
+  status: string | null,
+  q: string | null,
+  orgFilter: string | null,
+): MockMedia[] {
+  let list = [...db.media]
+  if (!isAdmin(user)) {
+    list = list.filter((m) => m.organization_id === user.organization_id)
+  } else if (orgFilter) {
+    const oid = Number(orgFilter)
+    if (Number.isFinite(oid)) list = list.filter((m) => m.organization_id === oid)
+  }
+  if (status) {
+    list = list.filter((m) => m.status === status)
+  }
+  if (q) {
+    const qq = q.toLowerCase()
+    list = list.filter(
+      (m) =>
+        m.title.toLowerCase().includes(qq) ||
+        m.title_ar.includes(q) ||
+        m.description.toLowerCase().includes(qq),
+    )
+  }
+  return list
+}
+
+export const mediaHandlers = [
+  http.get(apiPath('/api/v4/screens/media/pending-count'), ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    const db = getDb()
+    const count = db.media.filter((m) => {
+      if (m.status !== 'pending') return false
+      if (isAdmin(user)) return true
+      return m.organization_id === user.organization_id
+    }).length
+    return HttpResponse.json({ success: true, data: { count } })
+  }),
+
+  http.post(apiPath('/api/v4/screens/media'), async ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    if (isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'المدراء لا يرفعون ميديا من هنا' }, { status: 403 })
+    }
+    await delay(1500)
+    const fd = await request.formData()
+    const file = fd.get('file')
+    const title = String(fd.get('title') ?? 'بدون عنوان')
+    const description = String(fd.get('description') ?? '')
+    const defaultDisplaySeconds = Number(fd.get('default_display_seconds') ?? 30)
+
+    const isVideo =
+      file instanceof File && (file.type.startsWith('video/') || /\.mp4$/i.test(file.name))
+    const mediaType: MediaType = isVideo ? 'video' : 'image'
+    const fileUrl = isVideo ? SAMPLE_VIDEO : UNSPLASH_POOL[Math.floor(Math.random() * UNSPLASH_POOL.length)] as string
+
+    const db = getDb()
+    const media_id = nextMediaId(db)
+    const ts = nowIso()
+    const row: MockMedia = {
+      media_id,
+      organization_id: user.organization_id,
+      title,
+      title_ar: title,
+      description,
+      media_type: mediaType,
+      file_url: fileUrl,
+      status: 'pending',
+      review_note: null,
+      default_display_seconds: Number.isFinite(defaultDisplaySeconds) ? defaultDisplaySeconds : 30,
+      created_at: ts,
+      updated_at: ts,
+    }
+    db.media.push(row)
+    persistDb()
+    return HttpResponse.json({ success: true, data: row }, { status: 201 })
+  }),
+
+  http.get(apiPath('/api/v4/screens/media'), ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const q = url.searchParams.get('q')
+    const organization_id = url.searchParams.get('organization_id')
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200)
+    const offset = Math.max(Number(url.searchParams.get('offset') ?? 0), 0)
+
+    const db = getDb()
+    const filtered = filterMediaList(db, user, status, q, organization_id)
+    const slice = filtered.slice(offset, offset + (Number.isFinite(limit) ? limit : 50))
+    return HttpResponse.json({
+      success: true,
+      data: {
+        items: slice,
+        total: filtered.length,
+        limit: Number.isFinite(limit) ? limit : 50,
+        offset,
+      },
+    })
+  }),
+
+  http.get(apiPath('/api/v4/screens/media/:id'), ({ request, params }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    const id = Number(params.id)
+    const db = getDb()
+    const row = db.media.find((m) => m.media_id === id)
+    if (!row) {
+      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+    }
+    if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+    }
+    return HttpResponse.json({ success: true, data: row })
+  }),
+
+  http.put(apiPath('/api/v4/screens/media/:id'), async ({ request, params }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    const id = Number(params.id)
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+    }
+    if (row.status === 'approved' && hasActiveScheduleForMedia(db, id)) {
+      return HttpResponse.json(
+        { success: false, message: 'لا يمكن التعديل: مرتبط بجداول نشطة' },
+        { status: 409 },
+      )
+    }
+    const body = (await request.json()) as Partial<{
+      title: string
+      title_ar: string
+      description: string
+      default_display_seconds: number
+    }>
+    const updated: MockMedia = {
+      ...row,
+      title: body.title ?? row.title,
+      title_ar: body.title_ar ?? row.title_ar,
+      description: body.description ?? row.description,
+      default_display_seconds:
+        body.default_display_seconds ?? row.default_display_seconds,
+      updated_at: nowIso(),
+    }
+    db.media[idx] = updated
+    persistDb()
+    return HttpResponse.json({ success: true, data: updated })
+  }),
+
+  http.delete(apiPath('/api/v4/screens/media/:id'), ({ request, params }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+    }
+    const id = Number(params.id)
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+    }
+    if (row.status === 'approved' && hasActiveScheduleForMedia(db, id)) {
+      return HttpResponse.json(
+        { success: false, message: 'لا يمكن الحذف: مرتبط بجداول نشطة' },
+        { status: 409 },
+      )
+    }
+    db.media.splice(idx, 1)
+    persistDb()
+    return HttpResponse.json({ success: true, data: { deleted: id } })
+  }),
+
+  http.put(apiPath('/api/v4/screens/media/:id/approve'), async ({ request, params }) => {
+    const user = getAuthUser(request)
+    if (!user || !isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+    }
+    const id = Number(params.id)
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+    }
+    const body = (await request.json().catch(() => ({}))) as { review_note?: string }
+    const row = db.media[idx]
+    row.status = 'approved'
+    row.review_note = body.review_note ?? null
+    row.updated_at = nowIso()
+    db.media[idx] = row
+    persistDb()
+    return HttpResponse.json({ success: true, data: row })
+  }),
+
+  http.put(apiPath('/api/v4/screens/media/:id/reject'), async ({ request, params }) => {
+    const user = getAuthUser(request)
+    if (!user || !isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+    }
+    const id = Number(params.id)
+    const body = (await request.json()) as { review_note?: string }
+    const note = String(body.review_note ?? '').trim()
+    if (!note) {
+      return HttpResponse.json({ success: false, message: 'ملاحظة المراجعة مطلوبة' }, { status: 400 })
+    }
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    row.status = 'rejected'
+    row.review_note = note
+    row.updated_at = nowIso()
+    db.media[idx] = row
+    persistDb()
+    return HttpResponse.json({ success: true, data: row })
+  }),
+]

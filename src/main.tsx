@@ -1,19 +1,18 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { ThemeProvider } from 'next-themes'
-import { BrowserRouter } from 'react-router-dom'
 import App from '@/App'
-import { AuthProvider } from '@/context/AuthContext'
 import '@/index.css'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
-  </React.StrictMode>,
-)
+async function enableMocks() {
+  if (import.meta.env.VITE_USE_MOCKS !== 'true') return
+  const { worker } = await import('@/mocks/browser')
+  return worker.start({ onUnhandledRequest: 'bypass' })
+}
+
+void enableMocks().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+})
