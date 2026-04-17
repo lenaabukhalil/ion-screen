@@ -1,0 +1,57 @@
+{
+  "app": {
+    "name": "ION Screen"
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "identifier_label": "البريد الإلكتروني أو رقم الجوال",
+    "identifier_placeholder": "أدخل الإيميل أو الجوال",
+    "password_label": "كلمة المرور",
+    "password_placeholder": "••••••••",
+    "submit": "دخول",
+    "error_invalid": "بيانات الدخول غير صحيحة",
+    "demo_title": "حسابات تجريبية",
+    "demo_hint": "أي كلمة مرور تعمل في وضع التطوير.",
+    "identifier_min": "يجب أن يكون 3 أحرف على الأقل",
+    "password_min": "يجب أن تكون 4 أحرف على الأقل"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "media": "الميديا",
+    "media_upload": "رفع ميديا",
+    "schedules": "الجداول",
+    "billing": "الفوترة",
+    "approvals": "طابور الموافقات",
+    "all_media": "كل الميديا",
+    "screens": "الشاشات"
+  },
+  "topbar": {
+    "logout": "تسجيل الخروج",
+    "profile": "الملف الشخصي",
+    "language": "اللغة"
+  },
+  "common": {
+    "loading": "جاري التحميل…",
+    "retry": "إعادة المحاولة",
+    "coming_soon": "سيتم إضافة هذه الصفحة قريباً."
+  },
+  "pages": {
+    "partner_dashboard": "لوحة الشريك",
+    "media_list": "مكتبة الميديا",
+    "media_upload": "رفع ميديا",
+    "media_detail": "تفاصيل الميديا",
+    "schedules_list": "جداول العرض",
+    "schedule_create": "جدول جديد",
+    "my_billing": "فواتيري",
+    "admin_dashboard": "لوحة الإدارة",
+    "approvals": "الموافقات",
+    "all_media": "كل الميديا",
+    "all_schedules": "كل الجداول",
+    "screens": "أجهزة الشاشات",
+    "billing_by_org": "الفوترة حسب المنشأة"
+  },
+  "not_found": {
+    "title": "الصفحة غير موجودة",
+    "back": "العودة للرئيسية"
+  }
+}

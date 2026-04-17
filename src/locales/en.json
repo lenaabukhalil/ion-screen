@@ -1,0 +1,57 @@
+{
+  "app": {
+    "name": "ION Screen"
+  },
+  "login": {
+    "title": "Sign in",
+    "identifier_label": "Email or mobile number",
+    "identifier_placeholder": "Enter email or mobile",
+    "password_label": "Password",
+    "password_placeholder": "••••••••",
+    "submit": "Sign in",
+    "error_invalid": "Invalid credentials",
+    "demo_title": "Demo accounts",
+    "demo_hint": "Any password works in development.",
+    "identifier_min": "Must be at least 3 characters",
+    "password_min": "Must be at least 4 characters"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "media": "Media",
+    "media_upload": "Upload media",
+    "schedules": "Schedules",
+    "billing": "Billing",
+    "approvals": "Approvals queue",
+    "all_media": "All media",
+    "screens": "Screens"
+  },
+  "topbar": {
+    "logout": "Log out",
+    "profile": "Profile",
+    "language": "Language"
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Retry",
+    "coming_soon": "This page will be available soon."
+  },
+  "pages": {
+    "partner_dashboard": "Partner dashboard",
+    "media_list": "Media library",
+    "media_upload": "Upload media",
+    "media_detail": "Media details",
+    "schedules_list": "Schedules",
+    "schedule_create": "New schedule",
+    "my_billing": "My billing",
+    "admin_dashboard": "Admin dashboard",
+    "approvals": "Approvals",
+    "all_media": "All media",
+    "all_schedules": "All schedules",
+    "screens": "Screen devices",
+    "billing_by_org": "Billing by organization"
+  },
+  "not_found": {
+    "title": "Page not found",
+    "back": "Back to home"
+  }
+}

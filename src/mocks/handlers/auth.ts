@@ -33,9 +33,11 @@ export const authHandlers = [
     const token = `mock.jwt.${user.user_id}`
     return HttpResponse.json({
       success: true,
-      token,
-      user,
-      permissions: {},
+      data: {
+        token,
+        user,
+        permissions: {},
+      },
     })
   }),
 
@@ -44,11 +46,14 @@ export const authHandlers = [
     if (!user) {
       return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
     }
-    return HttpResponse.json({ success: true, user, permissions: {} })
+    return HttpResponse.json({
+      success: true,
+      data: { user, permissions: {} },
+    })
   }),
 
   http.post(apiPath('/api/v4/auth/logout'), () => {
-    return HttpResponse.json({ success: true })
+    return HttpResponse.json({ success: true, data: {} })
   }),
 
   http.put(apiPath('/api/v4/auth/profile'), async ({ request }) => {
