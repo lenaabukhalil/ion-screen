@@ -1,54 +1,52 @@
 {
-  "app": {
-    "name": "ION Screen"
-  },
   "login": {
     "title": "Sign in",
-    "identifier_label": "Email or mobile number",
+    "identifier_label": "Email or mobile",
     "identifier_placeholder": "Enter email or mobile",
     "password_label": "Password",
     "password_placeholder": "••••••••",
     "submit": "Sign in",
     "error_invalid": "Invalid credentials",
-    "demo_title": "Demo accounts",
-    "demo_hint": "Any password works in development.",
     "identifier_min": "Must be at least 3 characters",
     "password_min": "Must be at least 4 characters"
   },
   "nav": {
     "dashboard": "Dashboard",
-    "media": "Media",
-    "media_upload": "Upload media",
-    "schedules": "Schedules",
-    "billing": "Billing",
-    "approvals": "Approvals queue",
-    "all_media": "All media",
-    "screens": "Screens"
+    "locations": "Locations",
+    "chargers": "Chargers",
+    "organizations": "Organizations"
   },
   "topbar": {
     "logout": "Log out",
-    "profile": "Profile",
-    "language": "Language"
+    "profile": "Profile"
+  },
+  "dashboard": {
+    "total_orgs": "Total organizations",
+    "total_locations": "Total locations",
+    "total_chargers": "Total chargers",
+    "map_title": "Charger map"
   },
   "common": {
     "loading": "Loading…",
+    "error_generic": "Something went wrong",
     "retry": "Retry",
-    "coming_soon": "This page will be available soon."
-  },
-  "pages": {
-    "partner_dashboard": "Partner dashboard",
-    "media_list": "Media library",
-    "media_upload": "Upload media",
-    "media_detail": "Media details",
-    "schedules_list": "Schedules",
-    "schedule_create": "New schedule",
-    "my_billing": "My billing",
-    "admin_dashboard": "Admin dashboard",
-    "approvals": "Approvals",
-    "all_media": "All media",
-    "all_schedules": "All schedules",
-    "screens": "Screen devices",
-    "billing_by_org": "Billing by organization"
+    "empty": "No data",
+    "search": "Search",
+    "filter_location": "Filter by location",
+    "all_locations": "All locations",
+    "name": "Name",
+    "organization": "Organization",
+    "location": "Location",
+    "lat": "Latitude",
+    "lng": "Longitude",
+    "chargers": "Chargers",
+    "charger": "Charger",
+    "status": "Status",
+    "online": "Online",
+    "offline": "Offline",
+    "unknown": "—",
+    "org_id": "Org ID",
+    "name_ar": "Arabic name"
   },
   "not_found": {
     "title": "Page not found",

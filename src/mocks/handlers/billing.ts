@@ -17,7 +17,7 @@ export const billingHandlers = [
   http.get(apiPath('/api/v4/screens/billing/summary'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const url = new URL(request.url)
     const { start, end } = parseRange(url.searchParams.get('from'), url.searchParams.get('to'))
@@ -88,7 +88,7 @@ export const billingHandlers = [
   http.get(apiPath('/api/v4/screens/billing/by-organization'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user || !isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
     }
     const url = new URL(request.url)
     const { start, end } = parseRange(url.searchParams.get('from'), url.searchParams.get('to'))

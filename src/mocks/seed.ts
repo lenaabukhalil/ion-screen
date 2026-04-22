@@ -25,8 +25,8 @@ const UNSPLASH: string[] = [
 
 const SAMPLE_VIDEO = 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4'
 
-const REJECT_NOTE_ORG2 = 'الصورة منخفضة الدقة، يرجى إعادة الرفع'
-const REJECT_NOTE_ORG3 = 'المحتوى لا يتوافق مع سياسة العرض'
+const REJECT_NOTE_ORG2 = 'Image resolution is too low. Please re-upload.'
+const REJECT_NOTE_ORG3 = 'Content does not comply with display policy.'
 
 function iso(d: Date): string {
   return d.toISOString()
@@ -123,7 +123,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 1,
       organization_id: 2,
       title: 'Mothers Day Promo',
-      title_ar: 'عرض عيد الأم',
       description: 'Spring campaign',
       media_type: 'image',
       file_url: UNSPLASH[0] as string,
@@ -137,7 +136,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 2,
       organization_id: 2,
       title: 'Ramadan Sale',
-      title_ar: 'تخفيضات رمضان',
       description: 'Ramadan discounts',
       media_type: 'video',
       file_url: SAMPLE_VIDEO,
@@ -151,7 +149,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 3,
       organization_id: 2,
       title: 'New Branch Opening',
-      title_ar: 'افتتاح فرع جديد',
       description: 'Grand opening',
       media_type: 'image',
       file_url: UNSPLASH[1] as string,
@@ -165,7 +162,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 4,
       organization_id: 2,
       title: 'EV Weekend',
-      title_ar: 'عطلة نهاية أسبوع للسيارات الكهربائية',
       description: 'Weekend EV promo',
       media_type: 'image',
       file_url: UNSPLASH[2] as string,
@@ -179,7 +175,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 5,
       organization_id: 2,
       title: 'Summer Splash',
-      title_ar: 'رشّات الصيف',
       description: 'Pending review',
       media_type: 'image',
       file_url: UNSPLASH[3] as string,
@@ -193,7 +188,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 6,
       organization_id: 2,
       title: 'Kids Corner',
-      title_ar: 'ركن الأطفال',
       description: 'Pending',
       media_type: 'video',
       file_url: SAMPLE_VIDEO,
@@ -207,7 +201,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 7,
       organization_id: 2,
       title: 'Low res banner',
-      title_ar: 'بانر منخفض الدقة',
       description: 'Rejected sample',
       media_type: 'image',
       file_url: UNSPLASH[4] as string,
@@ -221,7 +214,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 8,
       organization_id: 3,
       title: 'City Fashion Week',
-      title_ar: 'أسبوع الموضة',
       description: 'Fashion',
       media_type: 'image',
       file_url: UNSPLASH[5] as string,
@@ -235,7 +227,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 9,
       organization_id: 3,
       title: 'Zarqa Nights',
-      title_ar: 'ليالي الزرقاء',
       description: 'Night promo',
       media_type: 'video',
       file_url: SAMPLE_VIDEO,
@@ -249,7 +240,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 10,
       organization_id: 3,
       title: 'Coffee & Charge',
-      title_ar: 'قهوة وشحن',
       description: 'Café cross-promo',
       media_type: 'image',
       file_url: UNSPLASH[6] as string,
@@ -263,7 +253,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 11,
       organization_id: 3,
       title: 'Winter Sale Draft',
-      title_ar: 'مسودة تخفيضات الشتاء',
       description: 'Pending',
       media_type: 'image',
       file_url: UNSPLASH[7] as string,
@@ -277,7 +266,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 12,
       organization_id: 3,
       title: 'Flash 24h',
-      title_ar: 'عرض 24 ساعة',
       description: 'Pending',
       media_type: 'image',
       file_url: UNSPLASH[8] as string,
@@ -291,7 +279,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 13,
       organization_id: 3,
       title: 'Policy breach',
-      title_ar: 'محتوى مرفوض',
       description: 'Rejected',
       media_type: 'video',
       file_url: SAMPLE_VIDEO,
@@ -305,7 +292,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 14,
       organization_id: 4,
       title: 'Tech Park Launch',
-      title_ar: 'إطلاق تكنو بارك',
       description: 'Approved',
       media_type: 'image',
       file_url: UNSPLASH[9] as string,
@@ -319,7 +305,6 @@ function buildMedia(now: string): MockMedia[] {
       media_id: 15,
       organization_id: 4,
       title: 'Irbid Students',
-      title_ar: 'طلاب إربد',
       description: 'Pending',
       media_type: 'image',
       file_url: UNSPLASH[0] as string,
@@ -480,16 +465,16 @@ export function createSeedDb(): MockDb {
   ]
 
   const organizations: MockOrganization[] = [
-    { organization_id: 1, name: 'ION EV Charging', name_ar: 'أيون للشحن الكهربائي' },
-    { organization_id: 2, name: 'Green Mall', name_ar: 'المول الأخضر' },
-    { organization_id: 3, name: 'City Center', name_ar: 'سيتي سنتر' },
-    { organization_id: 4, name: 'Techno Park', name_ar: 'تكنو بارك' },
+    { organization_id: 1, name: 'ION EV Charging' },
+    { organization_id: 2, name: 'Green Mall' },
+    { organization_id: 3, name: 'City Center' },
+    { organization_id: 4, name: 'Techno Park' },
   ]
 
   const locations: MockLocation[] = [
-    { location_id: 10, organization_id: 2, name: 'Green Mall Amman', name_ar: 'المول الأخضر - عمّان', lat: 31.95, lng: 35.93 },
-    { location_id: 11, organization_id: 3, name: 'City Center Zarqa', name_ar: 'سيتي سنتر - الزرقاء', lat: 32.07, lng: 36.08 },
-    { location_id: 12, organization_id: 4, name: 'Techno Park Irbid', name_ar: 'تكنو بارك - إربد', lat: 32.55, lng: 35.84 },
+    { location_id: 10, organization_id: 2, name: 'Green Mall Amman', lat: 31.95, lng: 35.93 },
+    { location_id: 11, organization_id: 3, name: 'City Center Zarqa', lat: 32.07, lng: 36.08 },
+    { location_id: 12, organization_id: 4, name: 'Techno Park Irbid', lat: 32.55, lng: 35.84 },
   ]
 
   const chargers: MockCharger[] = [

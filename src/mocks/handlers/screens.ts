@@ -15,7 +15,7 @@ export const screensHandlers = [
   http.get(apiPath('/api/v4/screens/devices'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user || !isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
     }
     const url = new URL(request.url)
     const chargerId = url.searchParams.get('charger_id')
@@ -39,13 +39,13 @@ export const screensHandlers = [
   http.put(apiPath('/api/v4/screens/devices/:id'), async ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user || !isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.screen_devices.findIndex((d) => d.id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const body = (await request.json()) as Partial<Pick<MockScreenDevice, 'device_name' | 'is_online' | 'resolution' | 'orientation'>>
     const row = db.screen_devices[idx]

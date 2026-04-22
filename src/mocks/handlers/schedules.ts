@@ -15,10 +15,10 @@ export const schedulesHandlers = [
   http.post(apiPath('/api/v4/screens/schedules'), async ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     if (isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'استخدم واجهة الشريك لإنشاء الجداول' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Use the partner app to create schedules' }, { status: 403 })
     }
     const body = (await request.json()) as Partial<{
       media_id: number
@@ -33,15 +33,15 @@ export const schedulesHandlers = [
       active: boolean
     }>
     if (!body.media_id || !body.starts_at || !body.ends_at || !body.target_scope) {
-      return HttpResponse.json({ success: false, message: 'حقول ناقصة' }, { status: 400 })
+      return HttpResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 })
     }
     const db = getDb()
     const media = db.media.find((m) => m.media_id === body.media_id)
     if (!media || media.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ميديا غير صالحة' }, { status: 400 })
+      return HttpResponse.json({ success: false, message: 'Invalid media' }, { status: 400 })
     }
     if (media.status !== 'approved') {
-      return HttpResponse.json({ success: false, message: 'الميديا يجب أن تكون معتمدة' }, { status: 400 })
+      return HttpResponse.json({ success: false, message: 'Media must be approved' }, { status: 400 })
     }
     const rate = db.app_settings.default_rate_per_minute_partner
     const row: MockSchedule = {
@@ -67,7 +67,7 @@ export const schedulesHandlers = [
   http.get(apiPath('/api/v4/screens/schedules'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const url = new URL(request.url)
     const mediaId = url.searchParams.get('media_id')
@@ -99,16 +99,16 @@ export const schedulesHandlers = [
   http.get(apiPath('/api/v4/screens/schedules/:id'), ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const row = db.schedules.find((s) => s.schedule_id === id)
     if (!row) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     return HttpResponse.json({ success: true, data: row })
   }),
@@ -116,17 +116,17 @@ export const schedulesHandlers = [
   http.put(apiPath('/api/v4/screens/schedules/:id'), async ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.schedules.findIndex((s) => s.schedule_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const row = db.schedules[idx]
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     const body = (await request.json()) as Partial<MockSchedule>
     const updated: MockSchedule = {
@@ -148,17 +148,17 @@ export const schedulesHandlers = [
   http.delete(apiPath('/api/v4/screens/schedules/:id'), ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.schedules.findIndex((s) => s.schedule_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const row = db.schedules[idx]
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     db.schedules.splice(idx, 1)
     persistDb()

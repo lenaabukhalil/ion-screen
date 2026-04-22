@@ -7,7 +7,7 @@ export const lookupsHandlers = [
   http.get(apiPath('/api/v4/location'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const db = getDb()
     let list = [...db.locations]
@@ -20,7 +20,7 @@ export const lookupsHandlers = [
   http.get(apiPath('/api/v4/charger'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const url = new URL(request.url)
     const locationId = url.searchParams.get('locationId')
@@ -42,7 +42,7 @@ export const lookupsHandlers = [
   http.get(apiPath('/api/v4/org'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const db = getDb()
     let list = [...db.organizations]

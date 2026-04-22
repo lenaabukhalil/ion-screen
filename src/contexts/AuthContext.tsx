@@ -19,7 +19,7 @@ interface AuthContextValue {
   token: string | null
   status: AuthStatus
   isAdmin: boolean
-  login: (identifier: string, password: string) => Promise<User>
+  login: (identifier: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
 }
 
@@ -59,15 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [meQuery.isError, token, queryClient])
 
   const login = useCallback(
-    async (identifier: string, password: string): Promise<User> => {
-      const data = await authApi.login(identifier, password)
-      localStorage.setItem(TOKEN_KEY, data.token)
-      queryClient.setQueryData(['auth', 'me'], {
-        user: data.user,
-        permissions: data.permissions,
-      })
-      setToken(data.token)
-      return data.user
+    async (identifier: string, password: string): Promise<boolean> => {
+      try {
+        const data = await authApi.login(identifier, password)
+        localStorage.setItem(TOKEN_KEY, data.token)
+        queryClient.setQueryData(['auth', 'me'], { user: data.user })
+        setToken(data.token)
+        return true
+      } catch {
+        return false
+      }
     },
     [queryClient],
   )
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout()
     } catch {
-      /* ignore network errors on logout */
+      /* ignore */
     } finally {
       localStorage.removeItem(TOKEN_KEY)
       setToken(null)

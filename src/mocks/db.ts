@@ -16,14 +16,12 @@ export interface MockUser {
 export interface MockOrganization {
   organization_id: number
   name: string
-  name_ar: string
 }
 
 export interface MockLocation {
   location_id: number
   organization_id: number
   name: string
-  name_ar: string
   lat: number
   lng: number
 }
@@ -53,7 +51,6 @@ export interface MockMedia {
   media_id: number
   organization_id: number
   title: string
-  title_ar: string
   description: string
   media_type: MediaType
   file_url: string

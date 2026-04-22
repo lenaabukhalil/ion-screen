@@ -51,7 +51,6 @@ function filterMediaList(
     list = list.filter(
       (m) =>
         m.title.toLowerCase().includes(qq) ||
-        m.title_ar.includes(q) ||
         m.description.toLowerCase().includes(qq),
     )
   }
@@ -62,7 +61,7 @@ export const mediaHandlers = [
   http.get(apiPath('/api/v4/screens/media/pending-count'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const db = getDb()
     const count = db.media.filter((m) => {
@@ -76,15 +75,15 @@ export const mediaHandlers = [
   http.post(apiPath('/api/v4/screens/media'), async ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     if (isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'المدراء لا يرفعون ميديا من هنا' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins cannot upload media here' }, { status: 403 })
     }
     await delay(1500)
     const fd = await request.formData()
     const file = fd.get('file')
-    const title = String(fd.get('title') ?? 'بدون عنوان')
+    const title = String(fd.get('title') ?? 'Untitled')
     const description = String(fd.get('description') ?? '')
     const defaultDisplaySeconds = Number(fd.get('default_display_seconds') ?? 30)
 
@@ -100,7 +99,6 @@ export const mediaHandlers = [
       media_id,
       organization_id: user.organization_id,
       title,
-      title_ar: title,
       description,
       media_type: mediaType,
       file_url: fileUrl,
@@ -118,7 +116,7 @@ export const mediaHandlers = [
   http.get(apiPath('/api/v4/screens/media'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const url = new URL(request.url)
     const status = url.searchParams.get('status')
@@ -144,16 +142,16 @@ export const mediaHandlers = [
   http.get(apiPath('/api/v4/screens/media/:id'), ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const row = db.media.find((m) => m.media_id === id)
     if (!row) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     return HttpResponse.json({ success: true, data: row })
   }),
@@ -161,34 +159,32 @@ export const mediaHandlers = [
   http.put(apiPath('/api/v4/screens/media/:id'), async ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.media.findIndex((m) => m.media_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const row = db.media[idx]
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     if (row.status === 'approved' && hasActiveScheduleForMedia(db, id)) {
       return HttpResponse.json(
-        { success: false, message: 'لا يمكن التعديل: مرتبط بجداول نشطة' },
+        { success: false, message: 'Cannot edit: media has active schedules' },
         { status: 409 },
       )
     }
     const body = (await request.json()) as Partial<{
       title: string
-      title_ar: string
       description: string
       default_display_seconds: number
     }>
     const updated: MockMedia = {
       ...row,
       title: body.title ?? row.title,
-      title_ar: body.title_ar ?? row.title_ar,
       description: body.description ?? row.description,
       default_display_seconds:
         body.default_display_seconds ?? row.default_display_seconds,
@@ -202,21 +198,21 @@ export const mediaHandlers = [
   http.delete(apiPath('/api/v4/screens/media/:id'), ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.media.findIndex((m) => m.media_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const row = db.media[idx]
     if (!isAdmin(user) && row.organization_id !== user.organization_id) {
-      return HttpResponse.json({ success: false, message: 'ممنوع' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
     }
     if (row.status === 'approved' && hasActiveScheduleForMedia(db, id)) {
       return HttpResponse.json(
-        { success: false, message: 'لا يمكن الحذف: مرتبط بجداول نشطة' },
+        { success: false, message: 'Cannot delete: media has active schedules' },
         { status: 409 },
       )
     }
@@ -228,13 +224,13 @@ export const mediaHandlers = [
   http.put(apiPath('/api/v4/screens/media/:id/approve'), async ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user || !isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
     }
     const id = Number(params.id)
     const db = getDb()
     const idx = db.media.findIndex((m) => m.media_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const body = (await request.json().catch(() => ({}))) as { review_note?: string }
     const row = db.media[idx]
@@ -249,18 +245,18 @@ export const mediaHandlers = [
   http.put(apiPath('/api/v4/screens/media/:id/reject'), async ({ request, params }) => {
     const user = getAuthUser(request)
     if (!user || !isAdmin(user)) {
-      return HttpResponse.json({ success: false, message: 'للمدراء فقط' }, { status: 403 })
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
     }
     const id = Number(params.id)
     const body = (await request.json()) as { review_note?: string }
     const note = String(body.review_note ?? '').trim()
     if (!note) {
-      return HttpResponse.json({ success: false, message: 'ملاحظة المراجعة مطلوبة' }, { status: 400 })
+      return HttpResponse.json({ success: false, message: 'Review note is required' }, { status: 400 })
     }
     const db = getDb()
     const idx = db.media.findIndex((m) => m.media_id === id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
     }
     const row = db.media[idx]
     row.status = 'rejected'

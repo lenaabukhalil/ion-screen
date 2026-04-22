@@ -5,7 +5,7 @@ export function RequireAdmin() {
   const { isAdmin } = useAuth()
 
   if (!isAdmin) {
-    return <Navigate to="/partner/dashboard" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   return <Outlet />

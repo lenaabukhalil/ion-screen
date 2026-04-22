@@ -17,34 +17,10 @@ export function getAuthUser(request: Request): MockUser | null {
 }
 
 export const authHandlers = [
-  http.post(apiPath('/api/v4/auth/login'), async ({ request }) => {
-    const body = (await request.json()) as { identifier?: string; password?: string }
-    const id = String(body.identifier ?? '').trim().toLowerCase()
-    if (!id) {
-      return HttpResponse.json({ success: false, message: 'identifier مطلوب' }, { status: 400 })
-    }
-    const db = getDb()
-    const user = db.users.find(
-      (u) => u.email.toLowerCase() === id || u.mobile.replace(/\s/g, '') === id.replace(/\s/g, ''),
-    )
-    if (!user) {
-      return HttpResponse.json({ success: false, message: 'المستخدم غير موجود' }, { status: 401 })
-    }
-    const token = `mock.jwt.${user.user_id}`
-    return HttpResponse.json({
-      success: true,
-      data: {
-        token,
-        user,
-        permissions: {},
-      },
-    })
-  }),
-
   http.get(apiPath('/api/v4/auth/me'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     return HttpResponse.json({
       success: true,
@@ -59,7 +35,7 @@ export const authHandlers = [
   http.put(apiPath('/api/v4/auth/profile'), async ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {
-      return HttpResponse.json({ success: false, message: 'غير مصرح' }, { status: 401 })
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
     const body = (await request.json()) as {
       f_name?: string
@@ -70,7 +46,7 @@ export const authHandlers = [
     const db = getDb()
     const idx = db.users.findIndex((u) => u.user_id === user.user_id)
     if (idx === -1) {
-      return HttpResponse.json({ success: false, message: 'المستخدم غير موجود' }, { status: 404 })
+      return HttpResponse.json({ success: false, message: 'User not found' }, { status: 404 })
     }
     const updated: MockUser = {
       ...db.users[idx],

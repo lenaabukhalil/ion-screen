@@ -8,7 +8,7 @@ export interface ApiEnvelope<T> {
   message?: string
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:1880'
+const baseURL = import.meta.env.VITE_API_BASE_URL || ''
 
 export const api = axios.create({ baseURL })
 
@@ -35,13 +35,30 @@ api.interceptors.response.use(
   },
 )
 
-export function unwrap<T>(res: AxiosResponse<ApiEnvelope<T>>): T {
+/**
+ * If body is `{ success: false, message }`, throw.
+ * If body is `{ success: true, data }`, return `data`.
+ * Otherwise return full body (arrays, plain objects, etc.).
+ */
+export function unwrap<T>(res: AxiosResponse<unknown>): T {
   const body = res.data
-  if (!body.success) {
-    throw new Error(body.message ?? 'Request failed')
+  if (body !== null && typeof body === 'object' && 'success' in body) {
+    const rec = body as Record<string, unknown>
+    if (rec.success === false) {
+      const msg = typeof rec.message === 'string' ? rec.message : 'Request failed'
+      throw new Error(msg)
+    }
+    if ('data' in rec && rec.data !== undefined) {
+      return rec.data as T
+    }
   }
-  if (body.data === undefined) {
-    throw new Error('Missing data')
+  return body as T
+}
+
+export function parseResponseBody(res: AxiosResponse<unknown>): unknown {
+  try {
+    return unwrap<unknown>(res)
+  } catch {
+    return res.data
   }
-  return body.data
 }
