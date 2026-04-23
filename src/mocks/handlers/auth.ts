@@ -17,6 +17,28 @@ export function getAuthUser(request: Request): MockUser | null {
 }
 
 export const authHandlers = [
+  http.post(apiPath('/api/v4/auth/login'), async ({ request }) => {
+    const body = (await request.json()) as {
+      identifier?: string
+      password?: string
+    }
+    const db = getDb()
+    const user = db.users.find(
+      (u) => u.email === body.identifier || u.mobile === body.identifier
+    )
+    if (!user) {
+      return HttpResponse.json(
+        { success: false, message: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+    const token = `mock.jwt.${user.user_id}`
+    return HttpResponse.json({
+      success: true,
+      data: { token, user },
+    })
+  }),
+
   http.get(apiPath('/api/v4/auth/me'), ({ request }) => {
     const user = getAuthUser(request)
     if (!user) {

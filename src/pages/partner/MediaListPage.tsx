@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImageIcon, Pencil, Trash2, Video } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,7 +29,6 @@ import {
   type MediaItem,
   type MediaStatus,
 } from '@/lib/api/media'
-import { listSchedules } from '@/lib/api/schedules'
 
 const STATUS_OPTIONS: Array<'all' | MediaStatus> = ['all', 'pending', 'approved', 'rejected']
 
@@ -62,23 +61,8 @@ export default function MediaListPage() {
       }),
   })
 
-  const activeSchedulesQuery = useQuery({
-    queryKey: ['schedules', 'active'],
-    queryFn: () => listSchedules({ active: true }),
-    enabled: !isAdmin,
-  })
-
-  const hasActiveScheduleSet = useMemo(() => {
-    const ids = new Set<number>()
-    for (const s of activeSchedulesQuery.data?.items ?? []) {
-      ids.add(s.media_id)
-    }
-    return ids
-  }, [activeSchedulesQuery.data?.items])
-
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['media'] })
-    await queryClient.invalidateQueries({ queryKey: ['schedules'] })
   }
 
   const deleteMutation = useMutation({
@@ -229,9 +213,6 @@ export default function MediaListPage() {
             </TableHeader>
             <TableBody>
               {rows.map((item) => {
-                const blockedBySchedule =
-                  !isAdmin && item.status === 'approved' && hasActiveScheduleSet.has(item.media_id)
-
                 return (
                   <TableRow key={item.media_id}>
                     <TableCell>
@@ -300,16 +281,14 @@ export default function MediaListPage() {
                                       size="sm"
                                       variant="outline"
                                       onClick={() => onEdit(item)}
-                                      disabled={blockedBySchedule || editMutation.isPending}
+                                      disabled={editMutation.isPending}
                                     >
                                       <Pencil className="mr-1 h-4 w-4" />
                                       Edit
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
-                                {blockedBySchedule ? (
-                                  <TooltipContent>Cannot edit approved media with active schedule</TooltipContent>
-                                ) : null}
+                                <TooltipContent>Edit media</TooltipContent>
                               </Tooltip>
 
                               <Tooltip>
@@ -319,16 +298,14 @@ export default function MediaListPage() {
                                       size="sm"
                                       variant="destructive"
                                       onClick={() => onDelete(item)}
-                                      disabled={blockedBySchedule || deleteMutation.isPending}
+                                      disabled={deleteMutation.isPending}
                                     >
                                       <Trash2 className="mr-1 h-4 w-4" />
                                       Delete
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
-                                {blockedBySchedule ? (
-                                  <TooltipContent>Cannot delete approved media with active schedule</TooltipContent>
-                                ) : null}
+                                <TooltipContent>Delete media</TooltipContent>
                               </Tooltip>
 
                               <Button size="sm" variant="secondary" asChild>

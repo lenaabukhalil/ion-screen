@@ -21,6 +21,7 @@ export interface MediaListParams {
   status?: MediaStatus
   q?: string
   organization_id?: number
+  media_type?: MediaType
   limit?: number
   offset?: number
 }
@@ -64,28 +65,55 @@ function toMediaItem(v: unknown): MediaItem | null {
 
 function toMediaListResult(raw: unknown): MediaListResult {
   const fallback: MediaListResult = { items: [], total: 0, limit: 50, offset: 0 }
+  if (Array.isArray(raw)) {
+    const items = raw.map(toMediaItem).filter((x): x is MediaItem => x !== null)
+    return {
+      items,
+      total: items.length,
+      limit: items.length || 50,
+      offset: 0,
+    }
+  }
   if (!isRecord(raw)) return fallback
 
-  const rawItems = Array.isArray(raw.items) ? raw.items : []
+  const rawItems = Array.isArray(raw.data)
+    ? raw.data
+    : Array.isArray(raw.items)
+      ? raw.items
+      : []
   const items = rawItems.map(toMediaItem).filter((x): x is MediaItem => x !== null)
 
   return {
     items,
-    total: Number(raw.total ?? items.length) || items.length,
+    total: Number(raw.count ?? raw.total ?? items.length) || items.length,
     limit: Number(raw.limit ?? 50) || 50,
     offset: Number(raw.offset ?? 0) || 0,
   }
+}
+
+async function getMediaById(id: number): Promise<MediaItem> {
+  const res = await api.get(`/api/v4/ion-screen/media?id=${encodeURIComponent(String(id))}`)
+  const body = parseResponseBody(res)
+  const list = toMediaListResult(body)
+  const item = list.items.find((x) => x.media_id === id)
+  if (item) return item
+
+  const direct = toMediaItem(body)
+  if (direct) return direct
+
+  throw new Error('Media not found after update')
 }
 
 export async function listMedia(params: MediaListParams = {}): Promise<MediaListResult> {
   const query = new URLSearchParams()
   if (params.status) query.set('status', params.status)
   if (params.q) query.set('q', params.q)
-  if (params.organization_id != null) query.set('organization_id', String(params.organization_id))
+  if (params.organization_id != null) query.set('organizationId', String(params.organization_id))
+  if (params.media_type) query.set('mediaType', params.media_type)
   if (params.limit != null) query.set('limit', String(params.limit))
   if (params.offset != null) query.set('offset', String(params.offset))
   const suffix = query.toString()
-  const url = suffix ? `/api/v4/screens/media?${suffix}` : '/api/v4/screens/media'
+  const url = suffix ? `/api/v4/ion-screen/media?${suffix}` : '/api/v4/ion-screen/media'
 
   const res = await api.get(url)
   const body = parseResponseBody(res)
@@ -99,29 +127,20 @@ export interface UpdateMediaInput {
 }
 
 export async function updateMedia(id: number, payload: UpdateMediaInput): Promise<MediaItem> {
-  const res = await api.put(`/api/v4/screens/media/${id}`, payload)
-  const body = parseResponseBody(res)
-  const item = toMediaItem(body)
-  if (!item) throw new Error('Invalid update response')
-  return item
+  await api.put(`/api/v4/ion-screen/media?id=${encodeURIComponent(String(id))}`, payload)
+  return getMediaById(id)
 }
 
 export async function deleteMedia(id: number): Promise<void> {
-  await api.delete(`/api/v4/screens/media/${id}`)
+  await api.delete(`/api/v4/ion-screen/media?id=${encodeURIComponent(String(id))}`)
 }
 
 export async function approveMedia(id: number, review_note?: string): Promise<MediaItem> {
-  const res = await api.put(`/api/v4/screens/media/${id}/approve`, { review_note })
-  const body = parseResponseBody(res)
-  const item = toMediaItem(body)
-  if (!item) throw new Error('Invalid approve response')
-  return item
+  await api.put(`/api/v4/ion-screen/media/approve?id=${encodeURIComponent(String(id))}`, { review_note })
+  return getMediaById(id)
 }
 
 export async function rejectMedia(id: number, review_note: string): Promise<MediaItem> {
-  const res = await api.put(`/api/v4/screens/media/${id}/reject`, { review_note })
-  const body = parseResponseBody(res)
-  const item = toMediaItem(body)
-  if (!item) throw new Error('Invalid reject response')
-  return item
+  await api.put(`/api/v4/ion-screen/media/reject?id=${encodeURIComponent(String(id))}`, { reason: review_note })
+  return getMediaById(id)
 }
