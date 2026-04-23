@@ -35,6 +35,8 @@ function filterMediaList(
   status: string | null,
   q: string | null,
   orgFilter: string | null,
+  mediaType: string | null,
+  chargerId: string | null,
 ): MockMedia[] {
   let list = [...db.media]
   if (!isAdmin(user)) {
@@ -54,7 +56,37 @@ function filterMediaList(
         m.description.toLowerCase().includes(qq),
     )
   }
+  if (mediaType) {
+    list = list.filter((m) => m.media_type === mediaType)
+  }
+  if (chargerId) {
+    const cid = Number(chargerId)
+    if (Number.isFinite(cid)) {
+      list = list.filter((m) => Number((m as unknown as { charger_id?: number }).charger_id) === cid)
+    }
+  }
   return list
+}
+
+function ionScreenFiltered(
+  request: Request,
+  user: { organization_id: number },
+): { list: MockMedia[]; limit: number; offset: number } {
+  const url = new URL(request.url)
+  const status = url.searchParams.get('status')
+  const q = url.searchParams.get('q')
+  const organizationId = url.searchParams.get('organizationId')
+  const mediaType = url.searchParams.get('mediaType')
+  const chargerId = url.searchParams.get('chargerId')
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200)
+  const offset = Math.max(Number(url.searchParams.get('offset') ?? 0), 0)
+  const db = getDb()
+  const list = filterMediaList(db, user, status, q, organizationId, mediaType, chargerId)
+  return {
+    list,
+    limit: Number.isFinite(limit) ? limit : 50,
+    offset,
+  }
 }
 
 export const mediaHandlers = [
@@ -126,7 +158,7 @@ export const mediaHandlers = [
     const offset = Math.max(Number(url.searchParams.get('offset') ?? 0), 0)
 
     const db = getDb()
-    const filtered = filterMediaList(db, user, status, q, organization_id)
+    const filtered = filterMediaList(db, user, status, q, organization_id, null, null)
     const slice = filtered.slice(offset, offset + (Number.isFinite(limit) ? limit : 50))
     return HttpResponse.json({
       success: true,
@@ -137,6 +169,181 @@ export const mediaHandlers = [
         offset,
       },
     })
+  }),
+
+  http.get(apiPath('/api/v4/ion-screen/media'), ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    }
+    const url = new URL(request.url)
+    const id = url.searchParams.get('id')
+    const db = getDb()
+    if (id) {
+      const mediaId = Number(id)
+      const row = db.media.find((m) => m.media_id === mediaId)
+      if (!row) {
+        return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
+      }
+      if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+        return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
+      }
+      return HttpResponse.json({ success: true, count: 1, data: [row] })
+    }
+    const { list, limit, offset } = ionScreenFiltered(request, user)
+    const slice = list.slice(offset, offset + limit)
+    return HttpResponse.json({ success: true, count: list.length, data: slice })
+  }),
+
+  http.post(apiPath('/api/v4/ion-screen/media'), async ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    }
+    if (isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'Admins cannot upload media here' }, { status: 403 })
+    }
+    const body = (await request.json().catch(() => ({}))) as Partial<MockMedia> & {
+      media_type?: MediaType
+      file_url?: string
+      category?: string
+      schedule_start?: string
+      schedule_end?: string
+      play_duration_sec?: number
+    }
+    const db = getDb()
+    const media_id = nextMediaId(db)
+    const ts = nowIso()
+    const row: MockMedia = {
+      media_id,
+      organization_id: user.organization_id,
+      title: body.title ?? 'Untitled',
+      description: body.description ?? '',
+      media_type: body.media_type === 'video' ? 'video' : 'image',
+      file_url: body.file_url ?? UNSPLASH_POOL[0] as string,
+      status: 'pending',
+      review_note: null,
+      default_display_seconds: Number(body.default_display_seconds ?? body.play_duration_sec ?? 30) || 30,
+      created_at: ts,
+      updated_at: ts,
+      ...(body as Partial<MockMedia>),
+    }
+    db.media.push(row)
+    persistDb()
+    return HttpResponse.json({ success: true, data: row }, { status: 201 })
+  }),
+
+  http.put(apiPath('/api/v4/ion-screen/media'), async ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    }
+    const url = new URL(request.url)
+    const id = Number(url.searchParams.get('id'))
+    if (!Number.isFinite(id)) {
+      return HttpResponse.json({ success: false, message: 'Missing id' }, { status: 400 })
+    }
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
+    }
+    const body = (await request.json().catch(() => ({}))) as Partial<MockMedia>
+    db.media[idx] = {
+      ...row,
+      ...body,
+      media_id: row.media_id,
+      organization_id: row.organization_id,
+      updated_at: nowIso(),
+    }
+    persistDb()
+    return HttpResponse.json({ success: true, message: 'Updated' })
+  }),
+
+  http.delete(apiPath('/api/v4/ion-screen/media'), ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user) {
+      return HttpResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    }
+    const url = new URL(request.url)
+    const id = Number(url.searchParams.get('id'))
+    if (!Number.isFinite(id)) {
+      return HttpResponse.json({ success: false, message: 'Missing id' }, { status: 400 })
+    }
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    if (!isAdmin(user) && row.organization_id !== user.organization_id) {
+      return HttpResponse.json({ success: false, message: 'Forbidden' }, { status: 403 })
+    }
+    db.media[idx] = { ...row, status: 'rejected', review_note: 'archived', updated_at: nowIso() }
+    persistDb()
+    return HttpResponse.json({ success: true, message: 'Archived' })
+  }),
+
+  http.put(apiPath('/api/v4/ion-screen/media/approve'), async ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user || !isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
+    }
+    const url = new URL(request.url)
+    const id = Number(url.searchParams.get('id'))
+    if (!Number.isFinite(id)) {
+      return HttpResponse.json({ success: false, message: 'Missing id' }, { status: 400 })
+    }
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
+    }
+    const body = (await request.json().catch(() => ({}))) as { review_note?: string }
+    const row = db.media[idx]
+    db.media[idx] = {
+      ...row,
+      status: 'approved',
+      review_note: body.review_note ?? null,
+      updated_at: nowIso(),
+    }
+    persistDb()
+    return HttpResponse.json({ success: true, message: 'Approved' })
+  }),
+
+  http.put(apiPath('/api/v4/ion-screen/media/reject'), async ({ request }) => {
+    const user = getAuthUser(request)
+    if (!user || !isAdmin(user)) {
+      return HttpResponse.json({ success: false, message: 'Admins only' }, { status: 403 })
+    }
+    const url = new URL(request.url)
+    const id = Number(url.searchParams.get('id'))
+    if (!Number.isFinite(id)) {
+      return HttpResponse.json({ success: false, message: 'Missing id' }, { status: 400 })
+    }
+    const body = (await request.json().catch(() => ({}))) as { reason?: string }
+    const reason = String(body.reason ?? '').trim()
+    if (!reason) {
+      return HttpResponse.json({ success: false, message: 'Reason is required' }, { status: 400 })
+    }
+    const db = getDb()
+    const idx = db.media.findIndex((m) => m.media_id === id)
+    if (idx === -1) {
+      return HttpResponse.json({ success: false, message: 'Not found' }, { status: 404 })
+    }
+    const row = db.media[idx]
+    db.media[idx] = {
+      ...row,
+      status: 'rejected',
+      review_note: reason,
+      updated_at: nowIso(),
+    }
+    persistDb()
+    return HttpResponse.json({ success: true, message: 'Rejected' })
   }),
 
   http.get(apiPath('/api/v4/screens/media/:id'), ({ request, params }) => {

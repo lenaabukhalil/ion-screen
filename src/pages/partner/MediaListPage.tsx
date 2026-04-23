@@ -308,9 +308,6 @@ export default function MediaListPage() {
                                 <TooltipContent>Delete media</TooltipContent>
                               </Tooltip>
 
-                              <Button size="sm" variant="secondary" asChild>
-                                <Link to="/schedules">Schedule</Link>
-                              </Button>
                             </>
                           )}
                         </div>

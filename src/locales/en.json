@@ -30,6 +30,7 @@
   "common": {
     "loading": "Loading…",
     "error_generic": "Something went wrong",
+    "coming_soon": "Coming soon",
     "retry": "Retry",
     "empty": "No data",
     "search": "Search",
@@ -43,6 +44,19 @@
     "chargers": "Chargers",
     "charger": "Charger",
     "status": "Status",
+    "upload": "Upload",
+    "approve": "Approve",
+    "reject": "Reject",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "draft": "Draft",
+    "archived": "Archived",
+    "category": "Category",
+    "file_url": "File URL",
+    "duration": "Duration (seconds)",
+    "schedule_start": "Schedule Start",
+    "schedule_end": "Schedule End",
     "online": "Online",
     "offline": "Offline",
     "unknown": "—",
@@ -54,6 +68,10 @@
     "back": "Back to home"
   },
   "pages": {
-    "media_list": "Media library"
+    "media_list": "Media library",
+    "media_upload": "Upload Media",
+    "media_detail": "Media Detail",
+    "my_billing": "My Billing",
+    "admin_dashboard": "Admin Dashboard"
   }
 }

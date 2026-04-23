@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
 
 export function HomeRedirect() {
-  const { status } = useAuth()
+  const { status, isAdmin } = useAuth()
   const { t } = useTranslation()
 
   if (status === 'loading') {
@@ -20,5 +20,5 @@ export function HomeRedirect() {
     return <Navigate to="/login" replace />
   }
 
-  return <Navigate to="/dashboard" replace />
+  return <Navigate to={isAdmin ? '/dashboard' : '/media'} replace />
 }

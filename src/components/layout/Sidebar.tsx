@@ -25,22 +25,32 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-        <NavLink to="/dashboard" className={linkClass} end>
-          <LayoutDashboard className="h-4 w-4 shrink-0" />
-          {t('nav.dashboard')}
-        </NavLink>
-        <NavLink to="/locations" className={linkClass}>
-          <MapPin className="h-4 w-4 shrink-0" />
-          {t('nav.locations')}
-        </NavLink>
-        <NavLink to="/chargers" className={linkClass}>
-          <BatteryCharging className="h-4 w-4 shrink-0" />
-          {t('nav.chargers')}
-        </NavLink>
+        {isAdmin ? (
+          <>
+            <NavLink to="/dashboard" className={linkClass} end>
+              <LayoutDashboard className="h-4 w-4 shrink-0" />
+              {t('nav.dashboard')}
+            </NavLink>
+            <NavLink to="/locations" className={linkClass}>
+              <MapPin className="h-4 w-4 shrink-0" />
+              {t('nav.locations')}
+            </NavLink>
+            <NavLink to="/chargers" className={linkClass}>
+              <BatteryCharging className="h-4 w-4 shrink-0" />
+              {t('nav.chargers')}
+            </NavLink>
+          </>
+        ) : null}
         <NavLink to="/media" className={linkClass}>
           <ImageIcon className="h-4 w-4 shrink-0" />
           {t('nav.media')}
         </NavLink>
+        {!isAdmin ? (
+          <NavLink to="/media/upload" className={linkClass}>
+            <ImageIcon className="h-4 w-4 shrink-0" />
+            {t('pages.media_upload')}
+          </NavLink>
+        ) : null}
         {isAdmin ? (
           <NavLink to="/organizations" className={linkClass}>
             <Building2 className="h-4 w-4 shrink-0" />

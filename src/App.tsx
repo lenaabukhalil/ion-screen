@@ -13,6 +13,7 @@ import LocationsPage from '@/pages/LocationsPage'
 import ChargersPage from '@/pages/ChargersPage'
 import OrganizationsPage from '@/pages/OrganizationsPage'
 import MediaListPage from '@/pages/partner/MediaListPage'
+import MediaUploadPage from '@/pages/partner/MediaUploadPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,11 +31,12 @@ export default function App() {
             <Route path="/" element={<HomeRedirect />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="locations" element={<LocationsPage />} />
-                <Route path="chargers" element={<ChargersPage />} />
                 <Route path="media" element={<MediaListPage />} />
+                <Route path="media/upload" element={<MediaUploadPage />} />
                 <Route element={<RequireAdmin />}>
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="locations" element={<LocationsPage />} />
+                  <Route path="chargers" element={<ChargersPage />} />
                   <Route path="organizations" element={<OrganizationsPage />} />
                 </Route>
               </Route>
