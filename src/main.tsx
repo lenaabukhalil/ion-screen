@@ -6,9 +6,15 @@ import App from '@/App'
 import '@/index.css'
 
 async function enableMocks() {
+  console.log('[mock-check] VITE_USE_MOCKS =', import.meta.env.VITE_USE_MOCKS)
   if (import.meta.env.VITE_USE_MOCKS !== 'true') return
-  const { worker } = await import('@/mocks/browser')
-  return worker.start({ onUnhandledRequest: 'bypass' })
+  try {
+    const { worker } = await import('@/mocks/browser')
+    await worker.start({ onUnhandledRequest: 'bypass' })
+    console.log('[MSW] worker started successfully')
+  } catch (e) {
+    console.error('[MSW] worker failed to start', e)
+  }
 }
 
 void enableMocks().then(() => {

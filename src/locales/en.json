@@ -14,7 +14,8 @@
     "dashboard": "Dashboard",
     "locations": "Locations",
     "chargers": "Chargers",
-    "organizations": "Organizations"
+    "organizations": "Organizations",
+    "media": "Media"
   },
   "topbar": {
     "logout": "Log out",
@@ -51,5 +52,8 @@
   "not_found": {
     "title": "Page not found",
     "back": "Back to home"
+  },
+  "pages": {
+    "media_list": "Media library"
   }
 }

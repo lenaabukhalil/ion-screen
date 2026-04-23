@@ -1,4 +1,4 @@
-import { BatteryCharging, Building2, LayoutDashboard, MapPin } from 'lucide-react'
+import { BatteryCharging, Building2, ImageIcon, LayoutDashboard, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -36,6 +36,10 @@ export function Sidebar() {
         <NavLink to="/chargers" className={linkClass}>
           <BatteryCharging className="h-4 w-4 shrink-0" />
           {t('nav.chargers')}
+        </NavLink>
+        <NavLink to="/media" className={linkClass}>
+          <ImageIcon className="h-4 w-4 shrink-0" />
+          {t('nav.media')}
         </NavLink>
         {isAdmin ? (
           <NavLink to="/organizations" className={linkClass}>
