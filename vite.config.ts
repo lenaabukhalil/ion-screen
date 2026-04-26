@@ -14,12 +14,11 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      proxy: useMocks
-        ? {}
-        : {
+      proxy: {
             '/api': {
               target: 'https://dash.evse.cloud',
               changeOrigin: true,
+              secure: true,
             },
           },
     },

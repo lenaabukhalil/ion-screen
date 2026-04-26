@@ -20,18 +20,20 @@ export function Topbar() {
   const f = user?.f_name?.charAt(0) ?? ''
   const l = user?.l_name?.charAt(0) ?? ''
   const initials = `${f}${l}`.toUpperCase() || '?'
+  const fullName = `${user?.f_name ?? ''} ${user?.l_name ?? ''}`.trim() || t('topbar.profile')
 
   const heading = title || 'ION Screen'
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 shadow-sm">
       <h2 className="text-lg font-semibold text-foreground">{heading}</h2>
       <div className="flex items-center gap-2">
+        <span className="hidden text-sm font-medium text-foreground sm:inline">{fullName}</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" className="relative h-9 w-9 rounded-full p-0">
               <Avatar className="h-9 w-9">
-                <AvatarFallback>{initials}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground">{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>

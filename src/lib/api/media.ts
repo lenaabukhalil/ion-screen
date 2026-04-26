@@ -201,6 +201,9 @@ export interface UploadMediaInput {
   description?: string
   media_type: MediaType
   file_url: string
+  status?: string
+  location_id?: number
+  charger_id?: number
   category?: string
   play_duration_sec?: number
   schedule_start?: string
@@ -208,9 +211,18 @@ export interface UploadMediaInput {
 }
 
 export async function uploadMedia(payload: UploadMediaInput | FormData): Promise<MediaItem> {
-  const body = payload instanceof FormData ? payload : payload
+  const body = payload instanceof FormData ? payload : { ...payload, status: 'pending' }
+  if (!(body instanceof FormData)) {
+    console.log('[uploadMedia] sending body:', JSON.stringify(body))
+  }
   const res = await api.post('/api/v4/ion-screen/media', body)
   const parsed = parseResponseBody(res)
+  if (parsed && typeof parsed === 'object' && 'insertId' in (parsed as object)) {
+    const insertId = (parsed as { insertId: number }).insertId
+    if (insertId) {
+      return getMediaById(insertId)
+    }
+  }
   const item = toMediaItem(parsed)
   if (!item) {
     const list = toMediaListResult(parsed)
