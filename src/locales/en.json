@@ -82,6 +82,16 @@
     "loc_fallback": "Loc #{{id}}",
     "rejection_note": "Rejection note"
   },
+  "map": {
+    "title": "Map View",
+    "all_organizations": "All Organizations",
+    "stats": "{{locations}} locations · {{chargers}} chargers",
+    "no_locations": "No locations found",
+    "no_chargers": "No chargers",
+    "charger_count": "{{count}} charger",
+    "charger_count_other": "{{count}} chargers",
+    "partner_badge": "{{count}} chargers"
+  },
   "common": {
     "loading": "Loading…",
     "error_generic": "Something went wrong",

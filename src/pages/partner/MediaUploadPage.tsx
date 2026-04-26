@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate } from 'react-router-dom'
@@ -30,23 +30,46 @@ import { uploadMedia, type MediaType } from '@/lib/api/media'
 import { getChargers, getLocations } from '@/lib/api/lookups'
 import { cn } from '@/lib/utils'
 
-const schema = z.object({
-  title: z.string().min(1).max(100),
-  description: z.string().max(300).optional(),
-  media_type: z.enum(['image', 'video', 'html', 'url']),
-  file_url: z.string().url(),
-  play_duration_sec: z.coerce.number().int().min(1).max(3600),
-  location_id: z.preprocess(
-    (v) => (v === '' || v == null ? undefined : Number(v)),
-    z.number().min(1, 'Please select a location'),
-  ),
-  charger_id: z.preprocess(
-    (v) => (v === '' || v == null ? undefined : Number(v)),
-    z.number().min(1, 'Please select a charger'),
-  ),
-  schedule_start: z.string().optional(),
-  schedule_end: z.string().optional(),
-})
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const schema = z
+  .object({
+    title: z.string().min(1).max(100),
+    description: z.string().max(300).optional(),
+    media_type: z.enum(['image', 'video', 'html', 'url']),
+    file_url: z.string().min(1),
+    play_duration_sec: z.coerce.number().int().min(1).max(3600),
+    location_id: z.preprocess(
+      (v) => (v === '' || v == null ? undefined : Number(v)),
+      z.number().min(1, 'Please select a location'),
+    ),
+    charger_id: z.preprocess(
+      (v) => (v === '' || v == null ? undefined : Number(v)),
+      z.number().min(1, 'Please select a charger'),
+    ),
+    schedule_start: z.string().optional(),
+    schedule_end: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.media_type === 'html') return
+    if (values.media_type === 'image' || values.media_type === 'video') {
+      const ok = isHttpUrl(values.file_url) || values.file_url.startsWith('blob:')
+      if (!ok) {
+        ctx.addIssue({ code: 'custom', message: 'Must be a valid URL', path: ['file_url'] })
+      }
+      return
+    }
+    if (!isHttpUrl(values.file_url)) {
+      ctx.addIssue({ code: 'custom', message: 'Must be a valid URL', path: ['file_url'] })
+    }
+  })
 
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -61,8 +84,9 @@ export default function MediaUploadPage() {
   const { isAdmin, user } = useAuth()
   const [currentStep, setCurrentStep] = useState<StepIndex>(0)
   const [isScheduleOpen, setIsScheduleOpen] = useState(false)
-  const [locationSearch, setLocationSearch] = useState('')
-  const [chargerSearch, setChargerSearch] = useState('')
+  const [uploadMode, setUploadMode] = useState<'upload' | 'url'>('url')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [objectPreviewUrl, setObjectPreviewUrl] = useState<string | null>(null)
   useSetPageTitle(t('pages.media_upload'))
 
   const form = useForm<FormInput, unknown, FormValues>({
@@ -95,8 +119,22 @@ export default function MediaUploadPage() {
   })
 
   const uploadMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      uploadMedia({
+    mutationFn: (values: FormValues) => {
+      if (selectedFile) {
+        const formData = new FormData()
+        formData.append('title', values.title)
+        if (values.description) formData.append('description', values.description)
+        formData.append('media_type', values.media_type)
+        formData.append('location_id', String(values.location_id))
+        formData.append('charger_id', String(values.charger_id))
+        formData.append('play_duration_sec', String(values.play_duration_sec))
+        if (values.schedule_start) formData.append('schedule_start', values.schedule_start)
+        if (values.schedule_end) formData.append('schedule_end', values.schedule_end)
+        formData.append('status', 'pending')
+        formData.append('file', selectedFile)
+        return uploadMedia(formData)
+      }
+      return uploadMedia({
         title: values.title,
         description: values.description || undefined,
         media_type: values.media_type,
@@ -106,7 +144,8 @@ export default function MediaUploadPage() {
         charger_id: values.charger_id,
         schedule_start: values.schedule_start || undefined,
         schedule_end: values.schedule_end || undefined,
-      }),
+      })
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['media'] })
       toast.success(t('media.upload_success'))
@@ -128,21 +167,6 @@ export default function MediaUploadPage() {
   const scheduleEnd = form.watch('schedule_end') ?? ''
   const urlValid = !form.formState.errors.file_url && fileUrl.trim().length > 0
 
-  const locationOptions = useMemo(
-    () =>
-      (locsQuery.data ?? []).filter((loc) =>
-        (loc.name ?? `Location #${loc.location_id}`).toLowerCase().includes(locationSearch.toLowerCase()),
-      ),
-    [locsQuery.data, locationSearch],
-  )
-  const chargerOptions = useMemo(
-    () =>
-      (chargersQuery.data ?? []).filter((c) =>
-        (c.name ?? c.chargerID ?? `Charger #${c.id}`).toLowerCase().includes(chargerSearch.toLowerCase()),
-      ),
-    [chargersQuery.data, chargerSearch],
-  )
-
   const selectedLocationLabel =
     (locsQuery.data ?? []).find((loc) => loc.location_id === selectedLocationId)?.name ??
     (selectedLocationId ? `Location #${selectedLocationId}` : t('common.unknown'))
@@ -153,6 +177,24 @@ export default function MediaUploadPage() {
     (chargersQuery.data ?? []).find((c) => c.id === selectedChargerId)?.name ??
     (chargersQuery.data ?? []).find((c) => c.id === selectedChargerId)?.chargerID ??
     (selectedChargerId ? `Charger #${selectedChargerId}` : t('common.unknown'))
+
+  useEffect(() => {
+    return () => {
+      if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
+    }
+  }, [objectPreviewUrl])
+
+  useEffect(() => {
+    setSelectedFile(null)
+    if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
+    setObjectPreviewUrl(null)
+    if (mediaType === 'image' || mediaType === 'video') {
+      setUploadMode('url')
+      form.setValue('file_url', '', { shouldValidate: true })
+    } else if (mediaType === 'html') {
+      form.setValue('file_url', '', { shouldValidate: true })
+    }
+  }, [mediaType, form, objectPreviewUrl])
 
   const goNext = async () => {
     if (currentStep === 0) {
@@ -166,11 +208,11 @@ export default function MediaUploadPage() {
     }
   }
 
-  const typeOptions: Array<{ value: MediaType; icon: typeof ImageIcon; emoji: string; label: string }> = [
-    { value: 'image', icon: ImageIcon, emoji: '🖼', label: t('media.type_image') },
-    { value: 'video', icon: Video, emoji: '🎬', label: t('media.type_video') },
-    { value: 'html', icon: Code2, emoji: '</>', label: t('media.type_html') },
-    { value: 'url', icon: Link2, emoji: '🔗', label: t('media.type_url') },
+  const typeOptions: Array<{ value: MediaType; icon: typeof ImageIcon; emoji: string; label: string; subtitle: string }> = [
+    { value: 'image', icon: ImageIcon, emoji: '🖼', label: t('media.type_image'), subtitle: 'Upload file or enter URL' },
+    { value: 'video', icon: Video, emoji: '🎬', label: t('media.type_video'), subtitle: 'Upload file or enter URL' },
+    { value: 'html', icon: Code2, emoji: '</>', label: t('media.type_html'), subtitle: 'Paste HTML code' },
+    { value: 'url', icon: Link2, emoji: '🔗', label: t('media.type_url'), subtitle: 'External link' },
   ]
 
   return (
@@ -246,6 +288,7 @@ export default function MediaUploadPage() {
                           <span className="text-xs text-muted-foreground">{option.emoji}</span>
                         </div>
                         <p className="text-sm font-medium">{option.label}</p>
+                        <p className="text-xs text-muted-foreground">{option.subtitle}</p>
                       </button>
                     )
                   })}
@@ -253,8 +296,85 @@ export default function MediaUploadPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="file_url">{t('common.file_url')}</Label>
-                <Input id="file_url" placeholder="https://example.com/media.jpg" {...form.register('file_url')} />
+                {(mediaType === 'image' || mediaType === 'video') && (
+                  <div className="inline-flex rounded-md border p-1">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('upload')}
+                      className={cn(
+                        'rounded px-3 py-1 text-xs font-medium',
+                        uploadMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('url')}
+                      className={cn(
+                        'rounded px-3 py-1 text-xs font-medium',
+                        uploadMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      Enter URL
+                    </button>
+                  </div>
+                )}
+
+                {(mediaType === 'image' || mediaType === 'video') && uploadMode === 'upload' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="media-file">Upload File</Label>
+                    <label
+                      htmlFor="media-file"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground"
+                    >
+                      <Upload className="mb-2 h-5 w-5" />
+                      {selectedFile ? selectedFile.name : 'Click to choose a file'}
+                    </label>
+                    <input
+                      id="media-file"
+                      type="file"
+                      accept={mediaType === 'image' ? 'image/*' : 'video/*'}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
+                        const url = URL.createObjectURL(file)
+                        setSelectedFile(file)
+                        setObjectPreviewUrl(url)
+                        form.setValue('file_url', url, { shouldValidate: true, shouldDirty: true })
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {(mediaType === 'image' || mediaType === 'video') && uploadMode === 'url' ? (
+                  <>
+                    <Label htmlFor="file_url">{t('common.file_url')}</Label>
+                    <Input id="file_url" placeholder="https://example.com/media.jpg" {...form.register('file_url')} />
+                  </>
+                ) : null}
+
+                {mediaType === 'html' ? (
+                  <>
+                    <Label htmlFor="file_url">HTML Content</Label>
+                    <textarea
+                      id="file_url"
+                      className="min-h-[180px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+                      placeholder="<div>Your HTML content</div>"
+                      {...form.register('file_url')}
+                    />
+                  </>
+                ) : null}
+
+                {mediaType === 'url' ? (
+                  <>
+                    <Label htmlFor="file_url">{t('common.file_url')}</Label>
+                    <Input id="file_url" type="url" placeholder="https://..." {...form.register('file_url')} />
+                  </>
+                ) : null}
+
                 <div
                   className={cn(
                     'text-xs',
@@ -278,9 +398,7 @@ export default function MediaUploadPage() {
                       <Link2 className="h-10 w-10" />
                     </div>
                   ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Code2 className="h-10 w-10" />
-                    </div>
+                    <iframe title="HTML preview" sandbox="allow-same-origin" srcDoc={fileUrl} className="h-full w-full" />
                   )}
                 </div>
               </div>
@@ -330,25 +448,19 @@ export default function MediaUploadPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="location-search">{t('common.location')}</Label>
-                <Input
-                  id="location-search"
-                  placeholder={t('media.select_location')}
-                  value={locationSearch}
-                  onChange={(e) => setLocationSearch(e.target.value)}
-                />
+                <Label htmlFor="location-select">{t('common.location')}</Label>
                 <select
+                  id="location-select"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={typeof selectedLocationId === 'number' ? selectedLocationId : ''}
                   onChange={(e) => {
                     const next = e.target.value ? Number(e.target.value) : undefined
                     form.setValue('location_id', next, { shouldValidate: true, shouldDirty: true })
                     form.setValue('charger_id', undefined, { shouldDirty: true, shouldValidate: true })
-                    setChargerSearch('')
                   }}
                 >
                   <option value="">{t('media.select_location')}</option>
-                  {locationOptions.map((loc) => (
+                  {(locsQuery.data ?? []).map((loc) => (
                     <option key={loc.location_id} value={loc.location_id}>
                       {loc.name ?? `Location #${loc.location_id}`}
                     </option>
@@ -360,15 +472,9 @@ export default function MediaUploadPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="charger-search">{t('common.charger')}</Label>
-                <Input
-                  id="charger-search"
-                  placeholder={t('media.select_charger')}
-                  value={chargerSearch}
-                  onChange={(e) => setChargerSearch(e.target.value)}
-                  disabled={!selectedLocationId}
-                />
+                <Label htmlFor="charger-select">{t('common.charger')}</Label>
                 <select
+                  id="charger-select"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={typeof selectedChargerId === 'number' ? selectedChargerId : ''}
                   onChange={(e) => {
@@ -378,7 +484,7 @@ export default function MediaUploadPage() {
                   disabled={!selectedLocationId}
                 >
                   <option value="">{t('media.select_charger')}</option>
-                  {chargerOptions.map((c) => (
+                  {(chargersQuery.data ?? []).map((c) => (
                     <option key={c.id} value={c.id}>
                       {`${c.name ?? t('media.charger_fallback', { id: c.id })} (${c.chargerID ?? c.id})`}
                     </option>
@@ -430,13 +536,16 @@ export default function MediaUploadPage() {
                       <PlayCircle className="h-10 w-10" />
                     </div>
                   ) : mediaType === 'url' ? (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
                       <Link2 className="h-10 w-10" />
+                      {isHttpUrl(fileUrl) ? (
+                        <a href={fileUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+                          {fileUrl}
+                        </a>
+                      ) : null}
                     </div>
                   ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Code2 className="h-10 w-10" />
-                    </div>
+                    <iframe title="HTML preview review" sandbox="allow-same-origin" srcDoc={fileUrl} className="h-full w-full" />
                   )}
                 </div>
                 <div className="space-y-2 text-sm">

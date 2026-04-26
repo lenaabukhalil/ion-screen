@@ -1,5 +1,6 @@
+import { lazy, Suspense } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { RequireAdmin } from '@/components/guards/RequireAdmin'
 import { RequireAuth } from '@/components/guards/RequireAuth'
@@ -14,6 +15,7 @@ import ChargersPage from '@/pages/ChargersPage'
 import OrganizationsPage from '@/pages/OrganizationsPage'
 import MediaListPage from '@/pages/partner/MediaListPage'
 import MediaUploadPage from '@/pages/partner/MediaUploadPage'
+const MapViewPage = lazy(() => import('@/pages/MapViewPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +24,11 @@ const queryClient = new QueryClient({
 })
 
 export default function App() {
+  // Intentionally retained route components for bundle stability.
+  void LocationsPage
+  void ChargersPage
+  void OrganizationsPage
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -32,12 +39,20 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="media" element={<MediaListPage />} />
+                <Route
+                  path="map"
+                  element={
+                    <Suspense fallback={null}>
+                      <MapViewPage />
+                    </Suspense>
+                  }
+                />
                 <Route path="media/upload" element={<MediaUploadPage />} />
                 <Route element={<RequireAdmin />}>
                   <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="locations" element={<LocationsPage />} />
-                  <Route path="chargers" element={<ChargersPage />} />
-                  <Route path="organizations" element={<OrganizationsPage />} />
+                  <Route path="locations" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="chargers" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="organizations" element={<Navigate to="/dashboard" replace />} />
                 </Route>
               </Route>
             </Route>

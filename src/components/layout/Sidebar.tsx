@@ -1,4 +1,4 @@
-import { BatteryCharging, Building2, ImageIcon, LayoutDashboard, MapPin } from 'lucide-react'
+import { BatteryCharging, ImageIcon, LayoutDashboard, Map } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -6,7 +6,9 @@ import { cn } from '@/lib/utils'
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
+  const isION = user?.organization_id === 1
+  const showIONNav = isION || isAdmin
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -25,19 +27,11 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-        {isAdmin ? (
+        {showIONNav ? (
           <div className="space-y-1 border-b border-primary/20 pb-3">
             <NavLink to="/dashboard" className={linkClass} end>
               <LayoutDashboard className="h-4 w-4 shrink-0" />
               {t('dashboard.overview')}
-            </NavLink>
-            <NavLink to="/locations" className={linkClass}>
-              <MapPin className="h-4 w-4 shrink-0" />
-              {t('nav.locations')}
-            </NavLink>
-            <NavLink to="/chargers" className={linkClass}>
-              <BatteryCharging className="h-4 w-4 shrink-0" />
-              {t('nav.chargers')}
             </NavLink>
           </div>
         ) : null}
@@ -46,21 +40,17 @@ export function Sidebar() {
             <ImageIcon className="h-4 w-4 shrink-0" />
             {t('nav.media')}
           </NavLink>
-          {!isAdmin ? (
+          <NavLink to="/map" className={linkClass}>
+            <Map className="h-4 w-4 shrink-0" />
+            {t('map.title')}
+          </NavLink>
+          {!showIONNav ? (
             <NavLink to="/media/upload" className={linkClass}>
               <ImageIcon className="h-4 w-4 shrink-0" />
               {t('pages.media_upload')}
             </NavLink>
           ) : null}
         </div>
-        {isAdmin ? (
-          <div className="space-y-1 pt-3">
-            <NavLink to="/organizations" className={linkClass}>
-              <Building2 className="h-4 w-4 shrink-0" />
-              {t('nav.organizations')}
-            </NavLink>
-          </div>
-        ) : null}
       </nav>
     </aside>
   )
