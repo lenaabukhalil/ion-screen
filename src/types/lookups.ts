@@ -15,8 +15,11 @@ export interface Location {
 export interface Charger {
   id: number
   location_id?: number
+  organization_id?: number
+  lat?: number
+  lng?: number
   name?: string
   chargerID?: string
-  is_online?: boolean
+  is_online?: boolean | number | string
   connector_count?: number
 }

@@ -90,3 +90,50 @@
     transform: translateY(0);
   }
 }
+
+/* Dashboard overview map — zoom controls (shadcn-style) */
+.leaflet-container.dashboard-overview-map .leaflet-bar {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  overflow: hidden;
+}
+.leaflet-container.dashboard-overview-map .leaflet-bar a {
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-bottom: 1px solid hsl(var(--border));
+}
+.leaflet-container.dashboard-overview-map .leaflet-bar a:hover {
+  background: hsl(var(--muted));
+}
+.leaflet-container.dashboard-overview-map .leaflet-bar a:last-child {
+  border-bottom: none;
+}
+
+/* Charger map pin pulse (online) */
+@keyframes charger-pin-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.15));
+  }
+  50% {
+    transform: translateY(-1px) scale(1.05);
+    filter: drop-shadow(0 2px 8px rgb(22 163 74 / 0.45));
+  }
+}
+.charger-map-pin-pulse {
+  animation: charger-pin-pulse 2s ease-in-out infinite;
+}
+.charger-map-pin-root {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Hide Leaflet attribution UI (internal tooling; verify OSM terms for public deployments). */
+.leaflet-control-attribution {
+  display: none !important;
+}

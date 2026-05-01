@@ -42,8 +42,8 @@ function toLocation(raw: unknown): Location | null {
   if (!Number.isFinite(location_id)) return null
   const latRaw = raw.lat ?? raw.latitude
   const lngRaw = raw.lng ?? raw.longitude
-  const lat = typeof latRaw === 'number' ? latRaw : Number(latRaw)
-  const lng = typeof lngRaw === 'number' ? lngRaw : Number(lngRaw)
+  const lat = typeof latRaw === 'number' ? latRaw : latRaw != null ? Number(latRaw) : NaN
+  const lng = typeof lngRaw === 'number' ? lngRaw : lngRaw != null ? Number(lngRaw) : NaN
   return {
     location_id,
     organization_id:
@@ -61,12 +61,36 @@ function toCharger(raw: unknown): Charger | null {
   const id = Number(raw.id ?? raw.charger_id ?? raw.chargerId)
   if (!Number.isFinite(id)) return null
   const locId = raw.location_id ?? raw.locationId
+  const orgRaw = raw.organization_id ?? raw.organizationId ?? raw.org_id
+  const organization_id =
+    orgRaw !== undefined && orgRaw !== null && String(orgRaw) !== ''
+      ? Number(orgRaw)
+      : undefined
+  const latRaw = raw.lat ?? raw.latitude
+  const lngRaw = raw.lng ?? raw.longitude
+  let lat: number | undefined
+  let lng: number | undefined
+  if (latRaw !== undefined && latRaw !== null && String(latRaw) !== '') {
+    const n = typeof latRaw === 'number' ? latRaw : Number(latRaw)
+    if (Number.isFinite(n)) lat = n
+  }
+  if (lngRaw !== undefined && lngRaw !== null && String(lngRaw) !== '') {
+    const n = typeof lngRaw === 'number' ? lngRaw : Number(lngRaw)
+    if (Number.isFinite(n)) lng = n
+  }
   return {
     id,
     location_id: locId !== undefined ? Number(locId) : undefined,
+    organization_id: organization_id !== undefined && Number.isFinite(organization_id) ? organization_id : undefined,
+    lat,
+    lng,
     name: typeof raw.name === 'string' ? raw.name : undefined,
     chargerID: typeof raw.chargerID === 'string' ? raw.chargerID : typeof raw.chargerId === 'string' ? raw.chargerId : undefined,
-    is_online: typeof raw.is_online === 'boolean' ? raw.is_online : typeof raw.isOnline === 'boolean' ? raw.isOnline : undefined,
+    is_online: (raw.is_online !== undefined
+      ? raw.is_online
+      : raw.isOnline !== undefined
+        ? raw.isOnline
+        : undefined) as Charger['is_online'],
     connector_count:
       raw.connector_count !== undefined || raw.connectorCount !== undefined
         ? Number(raw.connector_count ?? raw.connectorCount)

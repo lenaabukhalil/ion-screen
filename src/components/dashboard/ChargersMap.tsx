@@ -6,6 +6,7 @@ import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 import { useTranslation } from 'react-i18next'
 import type { Charger } from '@/types/lookups'
 
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -28,11 +29,14 @@ export function ChargersMap({ points }: ChargersMapProps) {
   const { t } = useTranslation()
 
   return (
-    <MapContainer center={[31.95, 35.93]} zoom={7} className="z-0 h-[500px] w-full rounded-md" scrollWheelZoom>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <MapContainer
+      center={[31.95, 35.93]}
+      zoom={7}
+      className="z-0 h-[500px] w-full rounded-md"
+      scrollWheelZoom
+      attributionControl={false}
+    >
+      <TileLayer attribution="" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       {points.map((p) => {
         const label = p.charger.name?.trim() || p.charger.chargerID?.trim() || String(p.charger.id)
         return (
