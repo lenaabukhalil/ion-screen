@@ -1,24 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import {
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Code2,
-  ImageIcon,
-  Info,
-  Link2,
-  Loader2,
-  PlayCircle,
-  Upload,
-  Video,
-} from 'lucide-react'
+import { Calendar, ChevronDown, ChevronUp, ImageIcon, Info, Loader2, Upload, Video } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -26,25 +14,31 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSetPageTitle } from '@/hooks/usePageTitle'
-import { uploadMedia, type MediaType } from '@/lib/api/media'
+import { uploadMedia, type UploadMediaInput } from '@/lib/api/media'
 import { getChargers, getLocations } from '@/lib/api/lookups'
 import { cn } from '@/lib/utils'
 
-function isHttpUrl(value: string): boolean {
+function isValidUrl(value: string): boolean {
   try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    new URL(value)
+    return true
   } catch {
     return false
   }
 }
 
+function getNowLocal(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 const schema = z
   .object({
-    title: z.string().min(1).max(100),
-    description: z.string().max(300).optional(),
-    media_type: z.enum(['image', 'video', 'html', 'url']),
-    file_url: z.string().min(1),
+    title: z.string().min(1, 'Title is required').max(100, 'Title must be 100 characters or less'),
+    description: z.string().max(300, 'Description must be 300 characters or less').optional(),
+    media_type: z.enum(['image', 'video']),
+    file_url: z.string().min(1, 'Media URL is required'),
     play_duration_sec: z.coerce.number().int().min(1).max(3600),
     location_id: z.preprocess(
       (v) => (v === '' || v == null ? undefined : Number(v)),
@@ -58,16 +52,32 @@ const schema = z
     schedule_end: z.string().optional(),
   })
   .superRefine((values, ctx) => {
-    if (values.media_type === 'html') return
-    if (values.media_type === 'image' || values.media_type === 'video') {
-      const ok = isHttpUrl(values.file_url) || values.file_url.startsWith('blob:')
-      if (!ok) {
-        ctx.addIssue({ code: 'custom', message: 'Must be a valid URL', path: ['file_url'] })
-      }
-      return
-    }
-    if (!isHttpUrl(values.file_url)) {
+    if (!isValidUrl(values.file_url)) {
       ctx.addIssue({ code: 'custom', message: 'Must be a valid URL', path: ['file_url'] })
+    }
+    const nowMs = Date.now()
+    const startRaw = values.schedule_start?.trim() ?? ''
+    if (startRaw) {
+      const startMs = new Date(startRaw).getTime()
+      if (Number.isNaN(startMs) || startMs < nowMs) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Schedule start must be in the future',
+          path: ['schedule_start'],
+        })
+      }
+    }
+    const endRaw = values.schedule_end?.trim() ?? ''
+    if (endRaw && startRaw) {
+      const startMs = new Date(startRaw).getTime()
+      const endMs = new Date(endRaw).getTime()
+      if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs <= startMs) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Schedule end must be after start',
+          path: ['schedule_end'],
+        })
+      }
     }
   })
 
@@ -84,9 +94,6 @@ export default function MediaUploadPage() {
   const { isAdmin, user } = useAuth()
   const [currentStep, setCurrentStep] = useState<StepIndex>(0)
   const [isScheduleOpen, setIsScheduleOpen] = useState(false)
-  const [uploadMode, setUploadMode] = useState<'upload' | 'url'>('url')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [objectPreviewUrl, setObjectPreviewUrl] = useState<string | null>(null)
   useSetPageTitle(t('pages.media_upload'))
 
   const form = useForm<FormInput, unknown, FormValues>({
@@ -96,7 +103,7 @@ export default function MediaUploadPage() {
       description: '',
       media_type: 'image',
       file_url: '',
-      play_duration_sec: 30,
+      play_duration_sec: 10,
       location_id: undefined,
       charger_id: undefined,
       schedule_start: '',
@@ -118,34 +125,26 @@ export default function MediaUploadPage() {
     enabled: Boolean(selectedLocationId),
   })
 
+  const visibleLocations = useMemo(() => {
+    const locations = locsQuery.data ?? []
+    if (user?.organization_id == null) return locations
+    return locations.filter((loc) => loc.organization_id === user.organization_id)
+  }, [locsQuery.data, user?.organization_id])
+
   const uploadMutation = useMutation({
-    mutationFn: (values: FormValues) => {
-      if (selectedFile) {
-        const formData = new FormData()
-        formData.append('title', values.title)
-        if (values.description) formData.append('description', values.description)
-        formData.append('media_type', values.media_type)
-        formData.append('location_id', String(values.location_id))
-        formData.append('charger_id', String(values.charger_id))
-        formData.append('play_duration_sec', String(values.play_duration_sec))
-        if (values.schedule_start) formData.append('schedule_start', values.schedule_start)
-        if (values.schedule_end) formData.append('schedule_end', values.schedule_end)
-        formData.append('status', 'pending')
-        formData.append('file', selectedFile)
-        return uploadMedia(formData)
-      }
-      return uploadMedia({
+    mutationFn: (values: FormValues) =>
+      uploadMedia({
         title: values.title,
         description: values.description || undefined,
         media_type: values.media_type,
         file_url: values.file_url,
-        play_duration_sec: values.play_duration_sec,
         location_id: values.location_id,
         charger_id: values.charger_id,
         schedule_start: values.schedule_start || undefined,
         schedule_end: values.schedule_end || undefined,
-      })
-    },
+        play_duration_sec: values.play_duration_sec,
+        status: 'pending',
+      } as UploadMediaInput),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['media'] })
       toast.success(t('media.upload_success'))
@@ -162,10 +161,19 @@ export default function MediaUploadPage() {
   const description = form.watch('description') ?? ''
   const mediaType = form.watch('media_type')
   const fileUrl = form.watch('file_url') ?? ''
-  const duration = Number(form.watch('play_duration_sec') || 0)
   const scheduleStart = form.watch('schedule_start') ?? ''
   const scheduleEnd = form.watch('schedule_end') ?? ''
-  const urlValid = !form.formState.errors.file_url && fileUrl.trim().length > 0
+  const minEnd = useMemo(() => {
+    const nowStr = getNowLocal()
+    if (scheduleStart) {
+      const startMs = new Date(scheduleStart).getTime()
+      if (!Number.isNaN(startMs) && startMs > Date.now()) {
+        return scheduleStart
+      }
+    }
+    return nowStr
+  }, [scheduleStart])
+  const urlValid = isValidUrl(fileUrl)
 
   const selectedLocationLabel =
     (locsQuery.data ?? []).find((loc) => loc.location_id === selectedLocationId)?.name ??
@@ -177,24 +185,9 @@ export default function MediaUploadPage() {
     (chargersQuery.data ?? []).find((c) => c.id === selectedChargerId)?.name ??
     (chargersQuery.data ?? []).find((c) => c.id === selectedChargerId)?.chargerID ??
     (selectedChargerId ? `Charger #${selectedChargerId}` : t('common.unknown'))
-
-  useEffect(() => {
-    return () => {
-      if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
-    }
-  }, [objectPreviewUrl])
-
-  useEffect(() => {
-    setSelectedFile(null)
-    if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
-    setObjectPreviewUrl(null)
-    if (mediaType === 'image' || mediaType === 'video') {
-      setUploadMode('url')
-      form.setValue('file_url', '', { shouldValidate: true })
-    } else if (mediaType === 'html') {
-      form.setValue('file_url', '', { shouldValidate: true })
-    }
-  }, [mediaType, form, objectPreviewUrl])
+  const fileUrlField = form.register('file_url')
+  const scheduleStartField = form.register('schedule_start')
+  const scheduleEndField = form.register('schedule_end')
 
   const goNext = async () => {
     if (currentStep === 0) {
@@ -208,11 +201,9 @@ export default function MediaUploadPage() {
     }
   }
 
-  const typeOptions: Array<{ value: MediaType; icon: typeof ImageIcon; emoji: string; label: string; subtitle: string }> = [
-    { value: 'image', icon: ImageIcon, emoji: '🖼', label: t('media.type_image'), subtitle: 'Upload file or enter URL' },
-    { value: 'video', icon: Video, emoji: '🎬', label: t('media.type_video'), subtitle: 'Upload file or enter URL' },
-    { value: 'html', icon: Code2, emoji: '</>', label: t('media.type_html'), subtitle: 'Paste HTML code' },
-    { value: 'url', icon: Link2, emoji: '🔗', label: t('media.type_url'), subtitle: 'External link' },
+  const typeOptions = [
+    { value: 'image' as const, icon: ImageIcon, emoji: '🖼', label: t('media.type_image') },
+    { value: 'video' as const, icon: Video, emoji: '🎬', label: t('media.type_video') },
   ]
 
   return (
@@ -240,10 +231,29 @@ export default function MediaUploadPage() {
           })}
         </div>
 
-        <form onSubmit={form.handleSubmit((values: FormValues) => uploadMutation.mutate(values))} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(
+            (values: FormValues) => uploadMutation.mutate(values),
+            () => {
+              const parsed = schema.safeParse(form.getValues())
+              if (!parsed.success) {
+                for (const issue of parsed.error.issues) {
+                  if (issue.path[0] === 'schedule_start') {
+                    form.setError('schedule_start', { type: 'custom', message: issue.message })
+                  }
+                  if (issue.path[0] === 'schedule_end') {
+                    form.setError('schedule_end', { type: 'custom', message: issue.message })
+                  }
+                }
+              }
+            },
+          )}
+          className="space-y-6"
+        >
           {currentStep === 0 ? (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold">{t('media.step_media_details')}</h3>
+
               <div className="space-y-2">
                 <Label htmlFor="title">{t('common.name')}</Label>
                 <Input id="title" maxLength={100} {...form.register('title')} />
@@ -288,7 +298,6 @@ export default function MediaUploadPage() {
                           <span className="text-xs text-muted-foreground">{option.emoji}</span>
                         </div>
                         <p className="text-sm font-medium">{option.label}</p>
-                        <p className="text-xs text-muted-foreground">{option.subtitle}</p>
                       </button>
                     )
                   })}
@@ -296,135 +305,20 @@ export default function MediaUploadPage() {
               </div>
 
               <div className="space-y-2">
-                {(mediaType === 'image' || mediaType === 'video') && (
-                  <div className="inline-flex rounded-md border p-1">
-                    <button
-                      type="button"
-                      onClick={() => setUploadMode('upload')}
-                      className={cn(
-                        'rounded px-3 py-1 text-xs font-medium',
-                        uploadMode === 'upload' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
-                      )}
-                    >
-                      Upload File
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUploadMode('url')}
-                      className={cn(
-                        'rounded px-3 py-1 text-xs font-medium',
-                        uploadMode === 'url' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
-                      )}
-                    >
-                      Enter URL
-                    </button>
-                  </div>
-                )}
-
-                {(mediaType === 'image' || mediaType === 'video') && uploadMode === 'upload' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="media-file">Upload File</Label>
-                    <label
-                      htmlFor="media-file"
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground"
-                    >
-                      <Upload className="mb-2 h-5 w-5" />
-                      {selectedFile ? selectedFile.name : 'Click to choose a file'}
-                    </label>
-                    <input
-                      id="media-file"
-                      type="file"
-                      accept={mediaType === 'image' ? 'image/*' : 'video/*'}
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        if (objectPreviewUrl) URL.revokeObjectURL(objectPreviewUrl)
-                        const url = URL.createObjectURL(file)
-                        setSelectedFile(file)
-                        setObjectPreviewUrl(url)
-                        form.setValue('file_url', url, { shouldValidate: true, shouldDirty: true })
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                {(mediaType === 'image' || mediaType === 'video') && uploadMode === 'url' ? (
-                  <>
-                    <Label htmlFor="file_url">{t('common.file_url')}</Label>
-                    <Input id="file_url" placeholder="https://example.com/media.jpg" {...form.register('file_url')} />
-                  </>
-                ) : null}
-
-                {mediaType === 'html' ? (
-                  <>
-                    <Label htmlFor="file_url">HTML Content</Label>
-                    <textarea
-                      id="file_url"
-                      className="min-h-[180px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
-                      placeholder="<div>Your HTML content</div>"
-                      {...form.register('file_url')}
-                    />
-                  </>
-                ) : null}
-
-                {mediaType === 'url' ? (
-                  <>
-                    <Label htmlFor="file_url">{t('common.file_url')}</Label>
-                    <Input id="file_url" type="url" placeholder="https://..." {...form.register('file_url')} />
-                  </>
-                ) : null}
-
-                <div
-                  className={cn(
-                    'text-xs',
-                    urlValid ? 'text-emerald-600' : fileUrl ? 'text-destructive' : 'text-muted-foreground',
-                  )}
-                >
+                <Label htmlFor="file_url">Media URL</Label>
+                <Input id="file_url" placeholder="https://..." {...fileUrlField} />
+                <div className={cn('text-xs', urlValid ? 'text-emerald-600' : fileUrl ? 'text-destructive' : 'text-muted-foreground')}>
                   {fileUrl ? (urlValid ? t('media.valid_url') : t('media.invalid_url')) : t('media.url_hint')}
                 </div>
-              </div>
+                {form.formState.errors.file_url ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.file_url.message}</p>
+                ) : null}
 
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="aspect-video overflow-hidden rounded-md border bg-background">
-                  {mediaType === 'image' && urlValid ? (
-                    <img src={fileUrl} alt={title || 'preview'} className="h-full w-full object-cover" />
-                  ) : mediaType === 'video' ? (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <PlayCircle className="h-10 w-10" />
-                    </div>
-                  ) : mediaType === 'url' ? (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Link2 className="h-10 w-10" />
-                    </div>
-                  ) : (
-                    <iframe title="HTML preview" sandbox="allow-same-origin" srcDoc={fileUrl} className="h-full w-full" />
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="play_duration_sec">{t('common.duration')}</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => form.setValue('play_duration_sec', Math.max(1, duration - 1), { shouldValidate: true })}
-                  >
-                    -
-                  </Button>
-                  <Input id="play_duration_sec" type="number" min={1} max={3600} {...form.register('play_duration_sec')} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => form.setValue('play_duration_sec', Math.min(3600, duration + 1), { shouldValidate: true })}
-                  >
-                    +
-                  </Button>
-                  <span className="text-sm text-muted-foreground">{t('media.seconds_label', { value: duration || 0 })}</span>
-                </div>
-                {form.formState.errors.play_duration_sec ? (
-                  <p className="text-xs text-destructive">{form.formState.errors.play_duration_sec.message}</p>
+                {urlValid && mediaType === 'image' ? (
+                  <img src={fileUrl} className="mt-3 max-h-40 rounded-md border object-contain" />
+                ) : null}
+                {urlValid && mediaType === 'video' ? (
+                  <video src={fileUrl} controls className="mt-3 max-h-40 w-full rounded-md border" />
                 ) : null}
               </div>
             </div>
@@ -460,7 +354,7 @@ export default function MediaUploadPage() {
                   }}
                 >
                   <option value="">{t('media.select_location')}</option>
-                  {(locsQuery.data ?? []).map((loc) => (
+                  {visibleLocations.map((loc) => (
                     <option key={loc.location_id} value={loc.location_id}>
                       {loc.name ?? `Location #${loc.location_id}`}
                     </option>
@@ -490,7 +384,9 @@ export default function MediaUploadPage() {
                     </option>
                   ))}
                 </select>
-                {!selectedLocationId ? <p className="text-xs text-muted-foreground">{t('common.select_location_first')}</p> : null}
+                {!selectedLocationId ? (
+                  <p className="text-xs text-muted-foreground">{t('common.select_location_first')}</p>
+                ) : null}
                 {form.formState.errors.charger_id ? (
                   <p className="text-xs text-destructive">{form.formState.errors.charger_id.message}</p>
                 ) : null}
@@ -512,11 +408,43 @@ export default function MediaUploadPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1">
                       <Label htmlFor="schedule_start">{t('common.schedule_start')}</Label>
-                      <Input id="schedule_start" type="datetime-local" {...form.register('schedule_start')} />
+                      <Input
+                        id="schedule_start"
+                        type="datetime-local"
+                        min={getNowLocal()}
+                        {...scheduleStartField}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (v && new Date(v).getTime() < Date.now()) {
+                            form.setValue('schedule_start', '', { shouldDirty: true, shouldValidate: true })
+                            toast.error('Schedule start must be in the future')
+                            return
+                          }
+                          scheduleStartField.onChange(e)
+                        }}
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="schedule_end">{t('common.schedule_end')}</Label>
-                      <Input id="schedule_end" type="datetime-local" {...form.register('schedule_end')} />
+                      <Input
+                        id="schedule_end"
+                        type="datetime-local"
+                        min={minEnd}
+                        {...scheduleEndField}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (scheduleStart && v) {
+                            const endMs = new Date(v).getTime()
+                            const startMs = new Date(scheduleStart).getTime()
+                            if (!Number.isNaN(endMs) && !Number.isNaN(startMs) && endMs <= startMs) {
+                              form.setValue('schedule_end', '', { shouldDirty: true, shouldValidate: true })
+                              toast.error('Schedule end must be after start')
+                              return
+                            }
+                          }
+                          scheduleEndField.onChange(e)
+                        }}
+                      />
                     </div>
                   </div>
                 ) : null}
@@ -528,32 +456,19 @@ export default function MediaUploadPage() {
             <div className="space-y-6">
               <h3 className="text-lg font-semibold">{t('media.step_review_submit')}</h3>
               <div className="rounded-lg border p-4">
-                <div className="mb-4 aspect-video overflow-hidden rounded-md border bg-muted">
-                  {mediaType === 'image' && urlValid ? (
-                    <img src={fileUrl} alt={title || 'preview'} className="h-full w-full object-cover" />
-                  ) : mediaType === 'video' ? (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <PlayCircle className="h-10 w-10" />
-                    </div>
-                  ) : mediaType === 'url' ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-                      <Link2 className="h-10 w-10" />
-                      {isHttpUrl(fileUrl) ? (
-                        <a href={fileUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-                          {fileUrl}
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <iframe title="HTML preview review" sandbox="allow-same-origin" srcDoc={fileUrl} className="h-full w-full" />
-                  )}
+                <div className="mb-4 rounded-md border bg-muted/30 p-3">
+                  {urlValid && mediaType === 'image' ? (
+                    <img src={fileUrl} className="max-h-40 rounded-md border object-contain" />
+                  ) : urlValid && mediaType === 'video' ? (
+                    <video src={fileUrl} controls className="max-h-40 w-full rounded-md border" />
+                  ) : null}
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="text-muted-foreground">{t('media.title_label')}:</span> {title || t('common.unknown')}</p>
+                  <p>
+                    <span className="text-muted-foreground">{t('media.title_label')}:</span> {title || t('common.unknown')}
+                  </p>
                   <p>
                     <span className="text-muted-foreground">{t('media.type_label')}:</span> {mediaType}
-                    <span className="mx-2 text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">{t('media.duration_label')}:</span> {duration}s
                   </p>
                   <p>
                     <span className="text-muted-foreground">{t('common.location')}:</span> {selectedLocationLabel}
@@ -574,7 +489,12 @@ export default function MediaUploadPage() {
           ) : null}
 
           <div className="flex items-center justify-between gap-3 border-t pt-4">
-            <Button type="button" variant="outline" onClick={() => setCurrentStep((s) => (s > 0 ? ((s - 1) as StepIndex) : s))} disabled={currentStep === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCurrentStep((s) => (s > 0 ? ((s - 1) as StepIndex) : s))}
+              disabled={currentStep === 0}
+            >
               {t('common.back')}
             </Button>
             {currentStep < 2 ? (

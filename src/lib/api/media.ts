@@ -198,36 +198,61 @@ export async function rejectMedia(id: number, review_note: string): Promise<Medi
 
 export interface UploadMediaInput {
   title: string
-  description?: string
-  media_type: MediaType
   file_url: string
-  status?: string
+  media_type: 'image' | 'video'
+  description?: string
   location_id?: number
   charger_id?: number
-  category?: string
-  play_duration_sec?: number
   schedule_start?: string
   schedule_end?: string
+  play_duration_sec?: number
 }
 
-export async function uploadMedia(payload: UploadMediaInput | FormData): Promise<MediaItem> {
-  const body = payload instanceof FormData ? payload : { ...payload, status: 'pending' }
-  if (!(body instanceof FormData)) {
-    console.log('[uploadMedia] sending body:', JSON.stringify(body))
+export async function uploadMedia(payload: UploadMediaInput): Promise<MediaItem> {
+  const body: {
+    title: string
+    file_url: string
+    media_type: 'image' | 'video'
+    status: 'pending'
+    description?: string
+    location_id?: number
+    charger_id?: number
+    schedule_start?: string
+    schedule_end?: string
+    play_duration_sec?: number
+  } = {
+    title: payload.title,
+    file_url: payload.file_url,
+    media_type: payload.media_type,
+    status: 'pending',
   }
+  if (payload.description != null && payload.description !== '') {
+    body.description = payload.description
+  }
+  if (payload.location_id != null) {
+    body.location_id = payload.location_id
+  }
+  if (payload.charger_id != null) {
+    body.charger_id = payload.charger_id
+  }
+  if (payload.schedule_start != null && payload.schedule_start !== '') {
+    body.schedule_start = payload.schedule_start
+  }
+  if (payload.schedule_end != null && payload.schedule_end !== '') {
+    body.schedule_end = payload.schedule_end
+  }
+  if (payload.play_duration_sec != null && Number.isFinite(payload.play_duration_sec)) {
+    body.play_duration_sec = payload.play_duration_sec
+  }
+
   const res = await api.post('/api/v4/ion-screen/media', body)
   const parsed = parseResponseBody(res)
-  if (parsed && typeof parsed === 'object' && 'insertId' in (parsed as object)) {
-    const insertId = (parsed as { insertId: number }).insertId
-    if (insertId) {
-      return getMediaById(insertId)
-    }
-  }
-  const item = toMediaItem(parsed)
-  if (!item) {
-    const list = toMediaListResult(parsed)
-    if (list.items.length > 0) return list.items[0]
+  if (!isRecord(parsed) || parsed.success !== true) {
     throw new Error('Invalid upload response')
   }
-  return item
+  const insertId = Number(parsed.insertId)
+  if (!Number.isFinite(insertId)) {
+    throw new Error('Invalid upload response')
+  }
+  return getMediaById(insertId)
 }

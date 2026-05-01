@@ -1,6 +1,13 @@
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatusBadge } from '@/components/media/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useSetPageTitle } from '@/hooks/usePageTitle'
 import { listMedia, type MediaItem, type MediaStatus } from '@/lib/api/media'
 import { getChargers, getLocations, getOrganizations } from '@/lib/api/lookups'
+import { cn } from '@/lib/utils'
 import {
   Archive,
   CheckCircle,
@@ -30,10 +38,69 @@ import {
   Video,
   XCircle,
   AlertTriangle,
+  LocateFixed,
 } from 'lucide-react'
+import type { Charger } from '@/types/lookups'
 
 const PAGE_SIZE = 20
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
+type ChargerOnlineFilter = 'all' | 'online' | 'offline' | 'unknown'
+
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+})
+
+function chargerStatus(charger: Charger): ChargerOnlineFilter {
+  if (charger.is_online === true) return 'online'
+  if (charger.is_online === false) return 'offline'
+  return 'unknown'
+}
+
+function markerIconForStatus(status: ChargerOnlineFilter): L.DivIcon {
+  const bg =
+    status === 'online'
+      ? '#16a34a'
+      : status === 'offline'
+        ? '#dc2626'
+        : '#6b7280'
+  return L.divIcon({
+    className: 'custom-charger-marker',
+    html: `<span style="display:block;width:14px;height:14px;border-radius:9999px;background:${bg};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3);"></span>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  })
+}
+
+function FitAllMarkersButton({
+  points,
+  label,
+  onDone,
+}: {
+  points: Array<[number, number]>
+  label: string
+  onDone?: () => void
+}) {
+  const map = useMap()
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      onClick={() => {
+        if (points.length === 0) return
+        map.fitBounds(L.latLngBounds(points), { padding: [30, 30] })
+        onDone?.()
+      }}
+      className="absolute right-3 top-3 z-[500]"
+    >
+      <LocateFixed className="mr-2 h-4 w-4" />
+      {label}
+    </Button>
+  )
+}
 
 function formatRelativeTime(
   dateStr: string | null | undefined,
@@ -74,6 +141,8 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [orgFilter, setOrgFilter] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
+  const [mapOrgFilter, setMapOrgFilter] = useState<number | 'all'>('all')
+  const [onlineFilter, setOnlineFilter] = useState<ChargerOnlineFilter>('all')
 
   const allMediaQuery = useQuery({
     queryKey: ['media', 'overview', 'all'],
@@ -122,6 +191,14 @@ export default function DashboardPage() {
     return map
   }, [locsQuery.data])
 
+  const locationById = useMemo(() => {
+    const map = new Map<number, NonNullable<(typeof locsQuery.data)>[number]>()
+    for (const loc of locsQuery.data ?? []) {
+      map.set(loc.location_id, loc)
+    }
+    return map
+  }, [locsQuery.data])
+
   const chargerById = useMemo(() => {
     const map = new Map<number, string>()
     for (const charger of chargersQuery.data ?? []) {
@@ -141,6 +218,43 @@ export default function DashboardPage() {
   const isStatsLoading = allMediaQuery.isPending || statusCounts.some((q) => q.isPending)
   const isTableLoading =
     mediaQuery.isPending || orgsQuery.isPending || locsQuery.isPending || chargersQuery.isPending
+
+  const mapChargers = useMemo(() => {
+    const byOrg =
+      mapOrgFilter === 'all'
+        ? chargersQuery.data ?? []
+        : (chargersQuery.data ?? []).filter((charger) => {
+            const loc = charger.location_id != null ? locationById.get(charger.location_id) : undefined
+            return loc?.organization_id === mapOrgFilter
+          })
+
+    if (onlineFilter === 'all') return byOrg
+    return byOrg.filter((charger) => chargerStatus(charger) === onlineFilter)
+  }, [chargersQuery.data, locationById, mapOrgFilter, onlineFilter])
+
+  const mapPoints = useMemo(() => {
+    return mapChargers
+      .map((charger) => {
+        const loc = charger.location_id != null ? locationById.get(charger.location_id) : undefined
+        if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return null
+        return {
+          charger,
+          loc,
+          position: [Number(loc.lat), Number(loc.lng)] as [number, number],
+        }
+      })
+      .filter((point): point is { charger: Charger; loc: NonNullable<(typeof locsQuery.data)>[number]; position: [number, number] } => point !== null)
+  }, [locationById, mapChargers, locsQuery.data])
+
+  const mapCenter = useMemo<[number, number]>(() => {
+    if (mapPoints.length === 0) return [31.9, 35.9]
+    const avgLat = mapPoints.reduce((sum, point) => sum + point.position[0], 0) / mapPoints.length
+    const avgLng = mapPoints.reduce((sum, point) => sum + point.position[1], 0) / mapPoints.length
+    return [avgLat, avgLng]
+  }, [mapPoints])
+
+  const onlineCount = mapChargers.filter((charger) => charger.is_online === true).length
+  const offlineCount = mapChargers.filter((charger) => charger.is_online === false).length
 
   return (
     <div className="space-y-6">
@@ -214,6 +328,113 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      <Card>
+        <CardHeader className="space-y-4">
+          <div>
+            <CardTitle className="text-xl">{t('map.charger_map_title')}</CardTitle>
+            <CardDescription>{t('map.charger_map_description')}</CardDescription>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={mapOrgFilter}
+              onChange={(e) => setMapOrgFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            >
+              <option value="all">{t('map.all_organizations')}</option>
+              {(orgsQuery.data ?? []).map((org) => (
+                <option key={org.organization_id} value={org.organization_id}>
+                  {org.name ?? t('dashboard.org_fallback', { id: org.organization_id })}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={onlineFilter}
+              onChange={(e) => setOnlineFilter(e.target.value as ChargerOnlineFilter)}
+            >
+              <option value="all">{t('map.status_all')}</option>
+              <option value="online">{t('common.online')}</option>
+              <option value="offline">{t('common.offline')}</option>
+              <option value="unknown">{t('map.status_unknown')}</option>
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <span>{t('map.stats', { locations: new Set(mapPoints.map((p) => p.loc.location_id)).size, chargers: mapPoints.length })}</span>
+            <span className="text-green-600">{t('map.online_count', { count: onlineCount })}</span>
+            <span className="text-red-600">{t('map.offline_count', { count: offlineCount })}</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isTableLoading ? (
+            <Skeleton className="h-[420px] w-full rounded-xl" />
+          ) : mapPoints.length === 0 ? (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              {t('map.no_locations')}
+            </div>
+          ) : (
+            <div className="relative h-[420px] overflow-hidden rounded-xl border border-border">
+              <MapContainer center={mapCenter} zoom={8} className="h-full w-full" key={`${mapCenter[0]},${mapCenter[1]},${mapOrgFilter},${onlineFilter}`}>
+                <TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <FitAllMarkersButton points={mapPoints.map((p) => p.position)} label={t('map.fit_all_markers')} />
+                <MarkerClusterGroup chunkedLoading>
+                  {mapPoints.map((point) => {
+                    const status = chargerStatus(point.charger)
+                    const orgName =
+                      point.loc.organization_id != null
+                        ? (orgById.get(point.loc.organization_id) ?? t('dashboard.org_fallback', { id: point.loc.organization_id }))
+                        : t('common.unknown')
+                    return (
+                      <Marker
+                        key={point.charger.id}
+                        position={point.position}
+                        icon={markerIconForStatus(status)}
+                      >
+                        <Popup>
+                          <div className="min-w-[220px] space-y-1 text-xs">
+                            <p className="text-sm font-semibold">
+                              {point.charger.name ?? point.charger.chargerID ?? `Charger #${point.charger.id}`}
+                            </p>
+                            <p className="text-muted-foreground">{point.loc.name ?? `Loc #${point.loc.location_id}`}</p>
+                            <p className="text-muted-foreground">{orgName}</p>
+                            <p>
+                              <span className="font-medium">{t('common.status')}:</span>{' '}
+                              <span
+                                className={cn(
+                                  'inline-flex rounded-full px-2 py-0.5',
+                                  status === 'online'
+                                    ? 'bg-green-100 text-green-700'
+                                    : status === 'offline'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-slate-100 text-slate-700',
+                                )}
+                              >
+                                {status === 'unknown' ? t('map.status_unknown') : t(`common.${status}`)}
+                              </span>
+                            </p>
+                            <p>
+                              <span className="font-medium">{t('map.connectors')}:</span>{' '}
+                              {point.charger.connector_count ?? t('common.unknown')}
+                            </p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )
+                  })}
+                </MarkerClusterGroup>
+              </MapContainer>
+              <div className="absolute bottom-3 left-3 z-[500] rounded-md border bg-background/95 p-3 text-xs shadow-sm">
+                <p className="mb-2 font-semibold">{t('map.legend')}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />{t('common.online')}</div>
+                  <div className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />{t('common.offline')}</div>
+                  <div className="flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-500" />{t('map.status_unknown')}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="space-y-4">

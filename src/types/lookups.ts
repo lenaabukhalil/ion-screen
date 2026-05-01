@@ -18,4 +18,5 @@ export interface Charger {
   name?: string
   chargerID?: string
   is_online?: boolean
+  connector_count?: number
 }

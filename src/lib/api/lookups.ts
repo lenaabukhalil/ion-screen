@@ -67,6 +67,10 @@ function toCharger(raw: unknown): Charger | null {
     name: typeof raw.name === 'string' ? raw.name : undefined,
     chargerID: typeof raw.chargerID === 'string' ? raw.chargerID : typeof raw.chargerId === 'string' ? raw.chargerId : undefined,
     is_online: typeof raw.is_online === 'boolean' ? raw.is_online : typeof raw.isOnline === 'boolean' ? raw.isOnline : undefined,
+    connector_count:
+      raw.connector_count !== undefined || raw.connectorCount !== undefined
+        ? Number(raw.connector_count ?? raw.connectorCount)
+        : undefined,
   }
 }
 

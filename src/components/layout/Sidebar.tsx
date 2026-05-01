@@ -1,4 +1,4 @@
-import { BatteryCharging, ImageIcon, LayoutDashboard, Map } from 'lucide-react'
+import { ImageIcon, LayoutDashboard, LogOut, Map } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { isAdmin, user } = useAuth()
+  const { isAdmin, user, logout } = useAuth()
   const isION = user?.organization_id === 1
   const showIONNav = isION || isAdmin
 
@@ -22,7 +22,7 @@ export function Sidebar() {
     <aside className="flex h-full w-56 shrink-0 flex-col border-e border-border bg-gradient-to-b from-slate-50 to-white">
       <div className="border-b border-primary/20 px-4 py-4">
         <div className="flex items-center gap-2 font-bold text-foreground">
-          <BatteryCharging className="h-6 w-6 text-primary" aria-hidden />
+          <img src="/ion-logo.png" alt="ION" className="h-6 w-6 object-contain" />
           <span className="text-primary">ION Screen</span>
         </div>
       </div>
@@ -51,6 +51,16 @@ export function Sidebar() {
             </NavLink>
           ) : null}
         </div>
+        <button
+          type="button"
+          className="mt-auto flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => {
+            void logout()
+          }}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {t('topbar.logout')}
+        </button>
       </nav>
     </aside>
   )

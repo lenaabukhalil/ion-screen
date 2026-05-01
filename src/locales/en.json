@@ -56,6 +56,12 @@
     "delete": "Delete",
     "approve_note": "Approved by admin",
     "reject_default_note": "Rejected by admin"
+    ,"upload_from_device": "Upload from device",
+    "drag_drop_file": "Drag and drop file here",
+    "or_click_browse": "or click to browse",
+    "selected_file": "Selected file",
+    "file_too_large": "File is too large. Max {{mb}} MB.",
+    "file_type_invalid": "Only image and video files are allowed."
   },
   "dashboard": {
     "overview": "Overview",
@@ -86,11 +92,20 @@
     "title": "Map View",
     "all_organizations": "All Organizations",
     "stats": "{{locations}} locations · {{chargers}} chargers",
+    "online_count": "Online: {{count}}",
+    "offline_count": "Offline: {{count}}",
+    "fit_all_markers": "Fit all markers",
+    "charger_map_title": "Charger Map",
+    "charger_map_description": "Geographic charger coverage and live status",
     "no_locations": "No locations found",
     "no_chargers": "No chargers",
     "charger_count": "{{count}} charger",
     "charger_count_other": "{{count}} chargers",
     "partner_badge": "{{count}} chargers"
+    ,"status_all": "All statuses",
+    "status_unknown": "Unknown",
+    "legend": "Legend",
+    "connectors": "Connectors"
   },
   "common": {
     "loading": "Loading…",
